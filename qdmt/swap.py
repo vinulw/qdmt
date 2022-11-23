@@ -57,6 +57,11 @@ if __name__=="__main__":
     θA = np.random.rand(8)
     θB = np.random.rand(8)
 
+    θA = [0.49839174, 0.06396436, 0.72746455, 0.49554481, 0.09096422,
+          0.82718966, 0.81167814, 0.8109978]
+    θB = [0.58834982, 0.19390417, 0.83379508, 0.93606346, 0.29246783,
+          0.03201088, 0.83285107, 0.27424746]
+
     N = 3
     Q = cirq.LineQubit.range(2*(N+1))
 
@@ -64,10 +69,10 @@ if __name__=="__main__":
 
     circuit = swap_test_circuit(θA, θB, Q, N, swapQs, debug=True)
 
-    print(swapQs)
+#    print(swapQs)
 
     flatQs = list(itertools.chain(*swapQs))
-    print(flatQs)
+#    print(flatQs)
 
     QA = [swapQ[0] for swapQ in swapQs]
     QB = [swapQ[1] for swapQ in swapQs]
@@ -80,7 +85,7 @@ if __name__=="__main__":
 
     print(circuit.to_text_diagram(transpose=True))
 
-    res = SimulateCircuitLocalNoiseless(circuit, 1000)
+    res = SimulateCircuitLocalNoiseless(circuit, 10000)
 
     nprintmax = 10
 
@@ -91,13 +96,13 @@ if __name__=="__main__":
     bitsA = [cirq.big_endian_int_to_bits(i, bit_count=bitcount) for i in measA]
     bitsB = [cirq.big_endian_int_to_bits(i, bit_count=bitcount) for i in measB]
 
-    print('Meas A in bits')
-    for a, bita in zip(measA[:nprintmax], bitsA[:nprintmax]):
-        print(f"{a}: {bita}")
-
-    print('Meas B in bits')
-    for b, bitb in zip(measB[:nprintmax], bitsB[:nprintmax]):
-        print(f"{b}: {bitb}")
+#    print('Meas A in bits')
+#    for a, bita in zip(measA[:nprintmax], bitsA[:nprintmax]):
+#        print(f"{a}: {bita}")
+#
+#    print('Meas B in bits')
+#    for b, bitb in zip(measB[:nprintmax], bitsB[:nprintmax]):
+#        print(f"{b}: {bitb}")
 
     def bitwiseAndList(A, B):
         return [int(a == b) for a, b in zip(A, B)]
@@ -112,5 +117,4 @@ if __name__=="__main__":
 
     probEven = sum(evenparityAB) / len(evenparityAB)
     print(f"Prob even parity: {probEven}")
-
 
