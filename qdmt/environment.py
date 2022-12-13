@@ -41,6 +41,63 @@ def generate_transferMatrix(A, W):
 
     return TM
 
+def generate_right_environment(transferMatrix):
+    """
+    For a given transfer matrix produce the vector that gives the right
+    environment. This corresponds to the right eigenvector with the highest
+    eigenvalue.
+    """
+    evals, evecs = eig(transferMatrix)
+    magEvals = np.abs(evals)
+    maxArg = np.argmax(magEvals)
+
+    R = evecs[:, maxArg]
+    return R
+
+def embed_state_in_unitary(ψ):
+    """
+    Embed a state ψ into a unitary V in the |0> state such that V|0> = ψ.
+
+    Note this requires the <0|ψ> term in the vector to be real.
+
+    TODO: Try to implement a Gram Schmidt version of this algorithm.
+    """
+    dim = ψ.shape[0]
+    zero = np.eye(dim)[0]
+    assert np.isclose(np.imag(np.dot(zero, ψ)), 0.0), "First element of ψ needs to be real"
+    v = (zero + ψ) / np.sqrt(2*(1 + np.dot(zero, ψ)))
+    return 2*np.outer(v, v.conj()) - np.eye(dim)
+
+def generate_environment_unitary(A, W):
+    """
+    For a given state tensor and evolution, produce the environment unitary V.
+    """
+    transferMatrix = generate_transferMatrix(A, W)
+
+    R = generate_right_environment(transferMatrix)
+
+    # Need to rearrange legs to make R Hermitian
+    R = R.reshape(D, D, D, D) # DAr, DWr, DWconjr, DAconjr
+    R = R.transpose(0, 1, 3, 2)
+    R = R.reshape(D*D, D*D)
+
+    # Produce the state U to embed in V
+    U, S, V = np.linalg.svd(R)
+    sqrtS = np.sqrt(S)
+
+    S = np.diag(S)
+    sqrtS = np.diag(sqrtS)
+
+    U = U @ sqrtS
+
+    U = U.reshape(-1, )
+    # State needs to be normalised to be embedded in V
+    U = U / np.linalg.norm(U)
+
+    V = embed_state_in_unitary(U)
+
+    return V
+
 if __name__=="__main__":
     d = 2
     D = 2
@@ -85,13 +142,23 @@ if __name__=="__main__":
     λarr = TR / R
     print('    ', np.isclose(np.min(λarr), np.max(λarr))) # Checking maxima and minima of λ are close
 
-    # Verifying that R is hermitian
+    from copy import copy
+    R_ = copy(R)
     R = R.reshape(D, D, D, D) # DAr, DWr, DWconjr, DAconjr
     R = R.transpose(0, 1, 3, 2)
     R = R.reshape(D*D, D*D)
 
+    print("Inverting R operations...")
+
+    Rinv = R.reshape(D, D, D, D)
+    Rinv = Rinv.transpose(0, 1, 3, 2)
+    Rinv = Rinv.reshape(-1, )
+
+    print(np.allclose(Rinv, R_))
+
     Rdagger = R.conj().T
 
+    # Verifying that R is hermitian
     print("Verifying R is Hermitian...")
     print('    ', np.allclose(R, Rdagger))
 
@@ -101,38 +168,47 @@ if __name__=="__main__":
     S = np.diag(S)
     sqrtS = np.diag(sqrtS)
 
-    print(np.allclose(S, sqrtS @ sqrtS))
-
     U = U @ sqrtS
 
+    RU = U @ U.conj().T
+
+    print("U found reproduces R:   ")
+    print("   ", np.allclose(R, RU))
+
     U = U.reshape(-1, )
+    U = U / np.linalg.norm(U)
 
 #    V = np.zeros([U.shape[0], U.shape[0]], dtype=complex)
 #    V[:, 0] = U
 #    V, _ = np.linalg.qr(V)
 
     s = np.eye(U.shape[0])[0]
-    def create_unitary(v):
-        dim = v.size
-        e1 = np.zeros(dim, dtype=complex)
-        e1[0] = 1
-        w = v/np.linalg.norm(v) - e1
-        return np.eye(dim, dtype=complex) - 2*((np.dot(w.T, w))/(np.dot(w, w.T)))
 
-    # See this page for some suggestions on making a unitary out of a vector
-    # https://math.stackexchange.com/questions/4160055/create-a-unitary-matrix-out-of-a-column-vector
-    def create_Householder_matrix(v):
-        v = v / np.linalg.norm(v)
-        dim = v.shape[0]
-        return np.eye(dim) - 2*np.outer(v, v.conj().T)
+    def unitary_from_state(ψ, debug=False):
+        '''
+        Try and generate a unitary with the U|0> = |ψ>
 
-    V = create_Householder_matrix(U)
+        Inspired by : https://quantumcomputing.stackexchange.com/questions/10239/how-can-i-fill-a-unitary-knowing-only-its-first-column
+
+        TODO:
+            - Alternative method could be done using Gram Schmidt process
+        '''
+        dim = ψ.shape[0]
+        zero = np.eye(dim)[0]
+        if debug:
+            print("Zeroth element of ψ:")
+            print(np.dot(zero, ψ))
+        assert np.isclose(np.imag(np.dot(zero, ψ)), 0.0), "First element of ψ needs to be real"
+        v = (zero + ψ) / np.sqrt(2*(1 + np.dot(zero, ψ)))
+        return 2*np.outer(v, v.conj()) - np.eye(dim)
+
+    V = unitary_from_state(U)
 
     UV = V @ s
-    print('U : UV : U / UV')
-    for i in range(U.shape[0]):
-        print(f'{U[i]}  :  {UV[i]}  :  {(U/UV)[i]}')
 
+#    print('U : UV : U / UV')
+#    for i in range(U.shape[0]):
+#        print(f'{U[i]}  :  {UV[i]}  :  {(U/UV)[i]}')
 
     # Checking V reproduced U state
     print("Checking V reproduces U state")
@@ -144,7 +220,25 @@ if __name__=="__main__":
     print('    ', np.allclose(np.eye(V.shape[0]), V @ Vdagger))
     print('    ', np.allclose(np.eye(V.shape[0]), Vdagger @ V))
 
+    # Verify that the reporduced U is a eigenvector for the transfer matrix
+    print("Verifying U from V produces environment...")
+    UV = UV.reshape(D*D, -1)
+    envU = ncon([UV, UV.conj()], ((-1, 1), (-2, 1)))
+    envU = envU.reshape(D, D, D, D)
+    envU = envU.transpose(0, 1, 3, 2)
+    envU = envU.reshape(-1)
 
+    λenv = (transferMatrix @ envU) / envU
+    maxλ = np.max(λenv)
+    minλ = np.min(λenv)
 
+#    print("R results:  ")
+#    print(np.linalg.norm(R))
+#    print(np.max(λR))
+#    print(np.min(λR))
+#    print("Env results:  ")
+#    print(np.linalg.norm(λenv))
+#    print(np.max(λenv))
+#    print(np.min(λenv))
 
-
+    print('   ', np.isclose(maxλ, minλ))
