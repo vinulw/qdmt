@@ -41,6 +41,14 @@ def generate_transferMatrix(A, W):
 
     return TM
 
+def generate_state_transferMatrix(A):
+    _, DAl, DAr = A.shape
+    TM = ncon([A, A.conj()],
+            ((1, -1, -3), (1, -2, -4)))
+
+    TM = TM.reshape(DAl**2, DAr**2)
+    return TM
+
 def generate_right_environment(transferMatrix):
     """
     For a given transfer matrix produce the vector that gives the right
@@ -68,20 +76,29 @@ def embed_state_in_unitary(ψ):
     v = (zero + ψ) / np.sqrt(2*(1 + np.dot(zero, ψ)))
     return 2*np.outer(v, v.conj()) - np.eye(dim)
 
-def generate_environment_unitary(A, W, D):
+def generate_environment_unitary(A, W=None, D):
     """
     For a given state tensor and evolution, produce the environment unitary V.
 
     This only works when the bond dimension is a constant D for A and W
     """
-    transferMatrix = generate_transferMatrix(A, W)
+    if W is not None:
+        transferMatrix = generate_transferMatrix(A, W)
 
-    R = generate_right_environment(transferMatrix)
+        R = generate_right_environment(transferMatrix)
 
-    # Need to rearrange legs to make R Hermitian
-    R = R.reshape(D, D, D, D) # DAr, DWr, DWconjr, DAconjr
-    R = R.transpose(0, 1, 3, 2)
-    R = R.reshape(D*D, D*D)
+        # Need to rearrange legs to make R Hermitian
+        R = R.reshape(D, D, D, D) # DAr, DWr, DWconjr, DAconjr
+        R = R.transpose(0, 1, 3, 2)
+        R = R.reshape(D*D, D*D)
+    else:
+        transferMatrix = generate_state_transferMatrix(A)
+
+        R = generate_right_environment(transferMatrix)
+
+        # Need to rearrange legs to make R Hermitian
+        R = R.reshape(D, D) # DAr, DWr, DWconjr, DAconjr
+
 
     # Produce the state U to embed in V
     U, S, V = np.linalg.svd(R)
@@ -99,6 +116,7 @@ def generate_environment_unitary(A, W, D):
     V = embed_state_in_unitary(U)
 
     return V
+
 
 def generate_random_state(d, D):
     """
