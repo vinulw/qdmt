@@ -68,9 +68,11 @@ def embed_state_in_unitary(ψ):
     v = (zero + ψ) / np.sqrt(2*(1 + np.dot(zero, ψ)))
     return 2*np.outer(v, v.conj()) - np.eye(dim)
 
-def generate_environment_unitary(A, W):
+def generate_environment_unitary(A, W, D):
     """
     For a given state tensor and evolution, produce the environment unitary V.
+
+    This only works when the bond dimension is a constant D for A and W
     """
     transferMatrix = generate_transferMatrix(A, W)
 
@@ -97,6 +99,28 @@ def generate_environment_unitary(A, W):
     V = embed_state_in_unitary(U)
 
     return V
+
+def generate_random_state(d, D):
+    """
+    Generate a random state tensor A (σ, Dl, Dr) with the proper canoncalisation.
+    """
+    U = unitary_group.rvs(d*D)
+    U = U.reshape(d, D, d, D)
+    U = U.transpose(2, 3, 0, 1)
+    zero_state = np.eye(d)[0, :]
+
+    A = ncon([U, zero_state], ((-1, -2, 1, -3), (1,)))
+    return A
+
+def generate_ranom_operator(d, D):
+    """
+    Generate a random operator tensor W (σ, Dl, l, Dr) = (d, D, d, D) with the
+    proper canonicalisation.
+    """
+    W = unitary_group.rvs(d*D)
+    W = W.reshape(d, D, d, D)
+    W = W.transpose(0, 2, 1, 3)
+    return W
 
 if __name__=="__main__":
     d = 2
