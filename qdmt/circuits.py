@@ -134,33 +134,80 @@ def TimeEvolutionOpLayer(g1, dtau, qubits):
 
     return ops
 
+def MPOLayerOps(AnsatzOps, AnsatzQubits, CircuitQubits):
+    ops = []
+    for i in range(1, len(CircuitQubits), 2):
+        q0, q1 = CircuitQubits[i], CircuitQubits[i+1]
+        mapdict = {
+                AnsatzQubits[0] : q0,
+                AnsatzQubits[1] : q1
+                }
+        CurrentOps = [Op.transform_qubits(mapdict) for Op in AnsatzOps]
+        ops.append(CurrentOps)
+    return ops
+
+
+
 ##############################################################
 # MPS Circuits
 ##############################################################
 
-def NSiteCircuit_Ansatz_Env(Psi, Theta, Q, N, Ne, Ansatz=StateAnsatzXZ, offset=0):
+def MPSCircuit_Ansatz_Env(θ, ψ, Q, N, Ne, Ansatz=StateAnsatzXZ, offset=0):
 
     c = cirq.Circuit()
 
     for i in range(Ne):
-        c.append(cirq.decompose_once( Ansatz(Theta).on( Q[-2-i], Q[-1-i] )))
+        c.append(cirq.decompose_once( Ansatz(ψ).on( Q[-2-i-offset], Q[-1-i-offset] )))
 
     for i in range(N):
-        c.append(cirq.decompose_once( Ansatz(Psi).on( Q[-2-i-Ne-offset], Q[-1-i-Ne-offset] ) ) )
+        c.append(cirq.decompose_once( Ansatz(θ).on( Q[-2-i-Ne-offset], Q[-1-i-Ne-offset] ) ) )
 
     return c
 
-def NSiteCircuit_Ansatz_Env_Right(Psi, Theta, Q, N, Ne, Ansatz=StateAnsatzXZ, offset=0):
+def MPSCircuit_Ansatz_Env_Right(θ, ψ, Q, N, Ne, Ansatz=StateAnsatzXZ, offset=0):
 
     c = cirq.Circuit()
 
     for i in range(Ne):
-        c.append(cirq.decompose_once( Ansatz(Theta).on( Q[i], Q[i+1] )))
+        c.append(cirq.decompose_once( Ansatz(ψ).on( Q[i], Q[i+1] )))
 
     for i in range(N):
-        c.append(cirq.decompose_once( Ansatz(Psi).on( Q[i+Ne+offset], Q[i+1+Ne+offset] ) ) )
+        c.append(cirq.decompose_once( Ansatz(θ).on( Q[i+Ne+offset], Q[i+1+Ne+offset] ) ) )
 
     return c
+
+def MPO_Gate_Ops(mpoGate, startIndex: int, stopIndex: int, Qubits):
+    assert startIndex <= stopIndex, 'Start index must be lower than stop index'
+
+    ops = []
+    for i in reversed(range(startIndex, stopIndex)):
+        ops.append(mpoGate.on(Qubits[i], Qubits[i+1]))
+
+    return ops
+
+def MPS_MPO_Circuit(θ, MPOGate, rightEnvGate, stateAnsatz, N, Qubits=None):
+    if Qubits is None:
+        Qubits = cirq.LineQubit.range(N+4)
+    noQubits = len(Qubits)
+    offset=3
+    assert noQubits >= N+4, "Not enough qubits"
+
+    # Add environment
+    circuit = cirq.Circuit()
+    circuit.append(rightEnvGate.on(*Qubits[-4:]))
+
+    # Add MPS
+    circuitmps = MPSCircuit_Ansatz_Env(θ, None, Qubits, N, 0, stateAnsatz, offset=offset)
+    circuit.append(circuitmps)
+
+    # Add MPO
+    startIndex = 1
+    endIndex = startIndex + N
+    ops = MPO_Gate_Ops(MPOGate, startIndex, endIndex, Qubits)
+    circuit.append(ops)
+
+    return circuit
+
 
 
 def OverlapCircuitEnv(θA, θB, Q, N, Ne=0, ψA=None, ψB=None,
