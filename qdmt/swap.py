@@ -1,4 +1,4 @@
-from circuits import NSiteCircuit_Ansatz_Env, StateAnsatzXZ, SwapTestOps, AddMeasure
+from circuits import MPSCircuit_Ansatz_Env, StateAnsatzXZ, SwapTestOps, AddMeasure
 import cirq
 from cirq.circuits import InsertStrategy
 import numpy as np
@@ -21,8 +21,8 @@ def swap_test_circuit(θA, θB, Q, N, swapQs, Ne=0, ψA=None, ψB=None, Ansatz=S
     if ψB is None:
         ψB = θA
 
-    circuitA = NSiteCircuit_Ansatz_Env(θA, ψA, QA, N, Ne, Ansatz).all_operations()
-    circuitB = NSiteCircuit_Ansatz_Env(θB, ψB, QB, N, Ne, Ansatz).all_operations()
+    circuitA = MPSCircuit_Ansatz_Env(θA, ψA, QA, N, Ne, Ansatz).all_operations()
+    circuitB = MPSCircuit_Ansatz_Env(θB, ψB, QB, N, Ne, Ansatz).all_operations()
 
     circuit = cirq.Circuit()
     circuit.append([circuitA, circuitB])
@@ -49,8 +49,7 @@ def generate_swapQs(Qs, swapindices):
 
     return [[QA[i], QB[i]] for i in swapindices]
 
-
-if __name__=="__main__":
+def main_old():
     import itertools
     from simulate import SimulateCircuitLocalNoiseless
 
@@ -117,4 +116,78 @@ if __name__=="__main__":
 
     probEven = sum(evenparityAB) / len(evenparityAB)
     print(f"Prob even parity: {probEven}")
+
+
+if __name__=="__main__":
+    from circuits import MPOLayerOps, MPSCircuit_Ansatz_Env, StateAnsatzXZ, MPO_Gate_Ops
+    from environment import generate_environment_unitary, generate_transferMatrix
+    from scipy.stats import unitary_group
+    from circuits import MPS_MPO_Circuit, MPS_MPO_Circuit_StateGate
+    from ncon import ncon
+    from simulate import SimulateCircuitLocalExact
+
+    d= 2
+    D = 2
+    θ = np.random.randn(8)
+    ψ = np.random.randn(8)
+    n = 1
+    ne = 0
+    offset=3
+    noQubits = n+4
+    qubits = cirq.LineQubit.range(noQubits)
+
+    stateU = unitary_group.rvs(d*D)
+    A = stateU.reshape(d, D, d, D)
+    A = A.transpose(2, 3, 0, 1)
+    zero_state = np.eye(d)[0, :]
+    stateGate = cirq.MatrixGate(stateU.T, name='U')
+
+    A = ncon([A, zero_state], ((-1, -2, 1, -3), (1,)))
+
+    mpoU = unitary_group.rvs(d*D)
+    W = mpoU.reshape(d, D, d, D)
+    W = W.transpose(2, 0, 3, 1)
+    mpoGate = cirq.MatrixGate(mpoU.T, name='W')
+
+    rightEnvironmentU = generate_environment_unitary(A, W=W, D=D)
+    s = np.eye(d**2*D**2)[0]
+    R1_2 = rightEnvironmentU @ s
+    R1_2 = R1_2.reshape(D*D, -1)
+    envU = ncon([R1_2, R1_2.conj()], ((-1, 1), (-2, 1)))
+    envU = envU.reshape(D, D, D, D)
+    envU = envU.transpose(0, 1, 3, 2)
+#    envU = envU.reshape(-1)
+
+    rightEnvironmentGate = cirq.MatrixGate(rightEnvironmentU.T, name='R1/2')
+    circuit = MPS_MPO_Circuit_StateGate(stateGate, mpoGate, rightEnvironmentGate, n, qubits)
+    print(circuit.to_text_diagram(transpose=True))
+
+    circuitDagger = cirq.inverse(circuit)
+#    circuit.append(circuitDagger)
+
+    AWWA = ncon([A, W, W.conj(), A.conj()],
+            ((1, -1, -5), (2, 1, -2, -6), (2, 3, -3, -7), (3, -4, -8)))
+    # AWWA.shape = (Dl_A, Dl_W, Dl_Wconj, Dl_Aconj, Dr_A, Dr_W, Dr_Wconj, Dr_Aconj)
+    IAWWA = ncon([AWWA, ], ((1, 2, 2, 1, -1, -2, -3, -4), ))
+    IAWWAR = ncon([IAWWA, envU], ((1, 2, 3, 4), (1, 2, 3, 4)))
+
+    AWWAR = ncon([AWWA, envU], ((-1, -2, -3, -4, 1, 2, 3, 4), (1, 2, 3, 4)))
+    print(IAWWAR)
+
+    R = R1_2.reshape(D, D, D, D)
+    AWR = ncon([A, W, R], ((1, -1, 2), (-3, 1, -2, 3), (2, 3, -4, -5)))
+    AWR = AWR.reshape(-1, )
+    print(AWR.shape)
+
+    res = SimulateCircuitLocalExact(circuit)
+    state = res.state_vector()
+    print(state.shape)
+
+    print(np.allclose(AWR, state))
+    print(np.linalg.norm(AWR))
+    print(np.linalg.norm(state))
+    print(AWR)
+    print()
+    print(state)
+
 

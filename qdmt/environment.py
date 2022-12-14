@@ -76,7 +76,7 @@ def embed_state_in_unitary(ψ):
     v = (zero + ψ) / np.sqrt(2*(1 + np.dot(zero, ψ)))
     return 2*np.outer(v, v.conj()) - np.eye(dim)
 
-def generate_environment_unitary(A, W=None, D):
+def generate_environment_unitary(A, D, W=None):
     """
     For a given state tensor and evolution, produce the environment unitary V.
 
@@ -144,7 +144,7 @@ if __name__=="__main__":
     d = 2
     D = 2
     U = unitary_group.rvs(d*D)
-    U = U.reshape(d, D, d, D)
+    U = U.reshape(d, D, d, D) # (l, Dr, σ, Dl)
     U = U.transpose(2, 3, 0, 1)
     zero_state = np.eye(d)[0, :]
 
@@ -157,14 +157,26 @@ if __name__=="__main__":
 
     # Generating time evolution unitary
     W = unitary_group.rvs(d*D)
-    W = W.reshape(d, D, d, D)
-    W = W.transpose(0, 2, 1, 3)
+    W = W.reshape(d, D, d, D) # (l, Dr, σ, Dl)
+#    W = W.transpose(0, 2, 1, 3) # (l, σ, Dr, Dl)
+    W = W.transpose(2, 0, 3, 1) # (σ, l, Dl, Dr)
 
     # Verifying the left canonicalisation of W
     WI = ncon([W, W.conj()], ((1, -1, 2, -2), (1, -3, 2, -4)))
     WI = WI.reshape(d*D, d*D)
     print("Verifying operator unitary condition")
     print('    ', np.allclose(WI, np.eye(d*D)))
+
+    # Verify the the MPS MPO Canonicalisation condition
+    AWWA = ncon([A, W, W.conj(), A.conj()],
+            ((1, -1, -5), (2, 1, -2, -6), (2, 3, -3, -7), (3, -4, -8)))
+    # AWWA.shape = (Dl_A, Dl_W, Dl_Wconj, Dl_Aconj, Dr_A, Dr_W, Dr_Wconj, Dr_Aconj)
+    IAWWA = ncon([AWWA, ], ((1, 2, 2, 1, -1, -2, -3, -4), ))
+
+    I2 = np.eye(2)
+    I4 = ncon([I2, I2], ((-1, -4), (-2, -3)))
+
+    print(np.allclose(IAWWA, I4))
 
     # Generating transfer matrix
     transferMatrix = generate_transferMatrix(A, W)

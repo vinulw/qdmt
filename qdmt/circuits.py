@@ -208,6 +208,30 @@ def MPS_MPO_Circuit(θ, MPOGate, rightEnvGate, stateAnsatz, N, Qubits=None):
 
     return circuit
 
+def MPS_MPO_Circuit_StateGate(StateGate, MPOGate, rightEnvGate, N, Qubits=None):
+    if Qubits is None:
+        Qubits = cirq.LineQubit.range(N+4)
+    noQubits = len(Qubits)
+    offset=3
+    assert noQubits >= N+4, "Not enough qubits"
+
+    # Add environment
+    circuit = cirq.Circuit()
+    circuit.append(rightEnvGate.on(*Qubits[-4:]))
+
+    # Add MPS
+    for i in range(N):
+        q0, q1 = Qubits[i], Qubits[i+1]
+        circuit.append(StateGate.on(q0, q1))
+
+    # Add MPO
+    startIndex = 1
+    endIndex = startIndex + N
+    ops = MPO_Gate_Ops(MPOGate, startIndex, endIndex, Qubits)
+    circuit.append(ops)
+
+    return circuit
+
 
 
 def OverlapCircuitEnv(θA, θB, Q, N, Ne=0, ψA=None, ψB=None,
