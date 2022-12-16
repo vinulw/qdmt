@@ -5,12 +5,12 @@ from functools import reduce
 import numpy as np
 
 Sx = np.array([[0, 1],
-               [1, 0]])
+               [1, 0]], dtype=complex)
 Sy = np.array([[0, 1j],
-               [-1j, 0]])
+               [-1j, 0]], dtype=complex)
 Sz = np.array([[1, 0],
-               [0, -1]])
-S = {'I': eye(2), 'X': Sx, 'Y': Sy, 'Z': Sz}
+               [0, -1]], dtype=complex)
+S = {'I': eye(2, dtype=complex), 'X': Sx, 'Y': Sy, 'Z': Sz}
 
 class Hamiltonian:
     """Hamiltonian: string of terms in local hamiltonian.
