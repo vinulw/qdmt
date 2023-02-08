@@ -42,7 +42,74 @@ def partial_density_matrix(A, R, N=1, ignored_indices=[]):
     contr = ncon([contr, R], (contrindices, (1, 2)))
     return contr
 
-if __name__=="__main__":
+def test_partial_density_matrix():
+    '''
+    Checking if Tr ρA == 1
+    '''
+    d= 2
+    D = 2 # Increment this to D=4 to fully represent time evolution
+
+    # Generate a random state tensor
+    stateU = unitary_group.rvs(d*D)
+    A = stateU.reshape(d, D, d, D)
+    A = A.transpose(2, 3, 0, 1)
+    zero_state = np.eye(d)[0, :]
+    A = ncon([A, zero_state], ((-1, -2, 1, -3), (1,))) # (Dl, σ, Dr)
+
+    # Generate the environment
+    transferMatrix = generate_state_transferMatrix(A)
+    R = generate_right_environment(transferMatrix)
+    R = R.reshape(D, D)
+    Rnorm = ncon([R], ((1, 1)))
+    R = R/Rnorm
+
+    A = A.transpose(1, 0, 2) # Change to an array with shape (Dl, σ, Dr)
+    ρA = partial_density_matrix(A, R, N=3, ignored_indices=[1, 2])
+
+    overlap_ρA = ncon([ρA], ((1, 1, 2, 2)))
+
+    assert np.allclose(overlap_ρA, 1.0+0j)
+
+def trace_distance(ρA, ρB):
+    '''
+    Calculate trace distance between ρA and ρB i.e. Tr((ρA - ρB)^2)
+
+    Args
+    ----
+    ρA, ρB : Arrays representing density matrices A and B respectively. Note
+            the shape of ρ should be (d1, d1, d2, d2, d3, d3, ...) where di represents
+            the dimension of index i of the subspace of the density matrix. Each
+            subspace appears in a pair representing the input and output legs of the
+            density matrix. I.e. the density matrix is organised as in the diagram below:
+
+            d1 --- ⎸     ⎸ --- d1
+                   ⎸     ⎸
+            d2 --- ⎸     ⎸ --- d2
+                   ⎸  ρ  ⎸
+                :
+            dn --- ⎸     ⎸ --- dn
+    '''
+    assert ρA.shape == ρB.shape , 'ρA and ρB need to have matching dimensions'
+
+    n = len(ρA.shape)
+
+    assert n % 2 == 0
+
+    contr0 = list(range(1, n+1))
+    contr1 = []
+    for i in range(n):
+        if i % 2 == 0:
+            contr1.append(contr0[i+1] )
+        else:
+            contr1.append(contr0[i-1])
+
+    trρAρA = ncon([ρA, ρA], (contr0, contr1))
+    trρAρB = ncon([ρA, ρB], (contr0, contr1))
+    trρBρB = ncon([ρB, ρB], (contr0, contr1))
+
+    return trρAρA + trρBρB - 2*trρAρB
+
+def test_trace_distance():
     np.random.seed(1)
     d= 2
     D = 2 # Increment this to D=4 to fully represent time evolution
@@ -54,14 +121,8 @@ if __name__=="__main__":
     zero_state = np.eye(d)[0, :]
     A = ncon([A, zero_state], ((-1, -2, 1, -3), (1,))) # (Dl, σ, Dr)
 
-    # Generate a random state tensor
-    stateU = unitary_group.rvs(d*D)
-    B = stateU.reshape(d, D, d, D)
-    B = B.transpose(2, 3, 0, 1)
-    zero_state = np.eye(d)[0, :]
-    B = ncon([B, zero_state], ((-1, -2, 1, -3), (1,))) # (Dl, σ, Dr)
-
-    print(np.allclose(A, B))
+    # Copy state
+    B = np.copy(A)
 
     # Generate the environment
     transferMatrix = generate_state_transferMatrix(A)
@@ -70,45 +131,42 @@ if __name__=="__main__":
     Rnorm = ncon([R], ((1, 1)))
     R = R/Rnorm
 
-    # Perform contraction to verify overlaps
-    contr = ncon([A, A.conj(), R], ((1, 2, 3), (1, 2, 4), (3, 4)))
-    print(contr)
+    # Copy environment
+    RB = np.copy(R)
 
-    # Generate ρ
-    #   - 3 repetitions of the state tensor with the middle one being left open
-
-    A = A.transpose(1, 0, 2) # Change to an array with shape (Dl, σ, Dr)
-    ρA = partial_density_matrix(A, R, N=3, ignored_indices=[1])
-    print(ρA.shape)
-    B = B.transpose(1, 0, 2) # Change to an array with shape (Dl, σ, Dr)
-    ρB = partial_density_matrix(B, R, N=3, ignored_indices=[1])
-
-    print("Contracting ρA with itself...")
-    overlap_ρAρA = ncon([ρA, ρA], ((1, 2), (2, 1)))
-    print(overlap_ρAρA)
-
-    print("Contracting ρA with ρB...")
-    overlap_ρAρB = ncon([ρA, ρB], ((1, 2), (2, 1)))
-    print(overlap_ρAρB)
-
-    # Generate ρ
-    #   - 4 repetitions of the state tensor with tensors 1, 2 being left open
 
     A = A.transpose(1, 0, 2) # Change to an array with shape (Dl, σ, Dr)
     ρA = partial_density_matrix(A, R, N=3, ignored_indices=[1, 2])
-    print(ρA.shape)
     B = B.transpose(1, 0, 2) # Change to an array with shape (Dl, σ, Dr)
-    ρB = partial_density_matrix(B, R, N=3, ignored_indices=[1, 2])
+    ρB = partial_density_matrix(B, RB, N=3, ignored_indices=[1, 2])
 
-    print("Contracting ρA with itself...")
-    overlap_ρAρA = ncon([ρA, ρA], ((1, 2, 3, 4), (2, 1, 4, 3)))
-    print(overlap_ρAρA)
+    assert np.allclose(trace_distance(ρA, ρB), 0+0j)
 
-    print("Contracting ρA with ρB...")
-    overlap_ρAρB = ncon([ρA, ρB], ((1, 2, 3, 4), (2, 1, 4, 3)))
-    print(overlap_ρAρB)
+    stateU = unitary_group.rvs(d*D)
+    B = stateU.reshape(d, D, d, D)
+    B = B.transpose(2, 3, 0, 1)
+    zero_state = np.eye(d)[0, :]
+    B = ncon([B, zero_state], ((-1, -2, 1, -3), (1,))) # (Dl, σ, Dr)
+
+    transferMatrix = generate_state_transferMatrix(B)
+    RB = generate_right_environment(transferMatrix)
+    RB = R.reshape(D, D)
+    Rnorm = ncon([RB], ((1, 1)))
+    RB = RB/Rnorm
+
+    B = B.transpose(1, 0, 2) # Change to an array with shape (Dl, σ, Dr)
+    ρB = partial_density_matrix(B, RB, N=3, ignored_indices=[1, 2])
+
+    dist = trace_distance(ρA, ρB)
+
+    assert np.real(dist) > 0
 
 
+if __name__=="__main__":
+    print("Testing partial density matrix")
+    test_partial_density_matrix()
+    print("   Passed.")
 
-
-
+    print("Testing trace distance...")
+    test_trace_distance()
+    print("   Passed.")
