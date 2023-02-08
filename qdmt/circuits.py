@@ -12,6 +12,7 @@ from cirq import two_qubit_matrix_to_sqrt_iswap_operations
 class StateAnsatzXZ(cirq.Gate):
     def __init__(self, Psi):
         self.Psi = Psi
+        self.name='U'
 
     def _decompose_(self, qubits):
         return [
@@ -32,11 +33,15 @@ class StateAnsatzXZ(cirq.Gate):
 #                cirq.CNOT(*qubits)
         ]
 
+    def set_name(self, name):
+        assert type(name) == str
+        self.name = name
+
     def num_qubits(self):
         return 2
 
     def _circuit_diagram_info_(self, args):
-        return ['U','U']
+        return [self.name, self.name]
 
 class StateAnsatzKak(cirq.Gate):
     def __init__(self, Psi):
@@ -220,7 +225,7 @@ def MPS_MPO_Circuit_StateGate(StateGate, MPOGate, rightEnvGate, N, Qubits=None):
     circuit.append(rightEnvGate.on(*Qubits[-4:]))
 
     # Add MPS
-    for i in range(N):
+    for i in reversed(range(N)):
         q0, q1 = Qubits[i], Qubits[i+1]
         circuit.append(StateGate.on(q0, q1))
 
@@ -232,6 +237,23 @@ def MPS_MPO_Circuit_StateGate(StateGate, MPOGate, rightEnvGate, N, Qubits=None):
 
     return circuit
 
+def MPS_Circuit_StateGate(StateGate, rightEnvGate, N, Qubits=None):
+    if Qubits is None:
+        Qubits = cirq.LineQubit.range(N+2)
+    noQubits = len(Qubits)
+    offset = 1
+    assert noQubits >= N+2, "Not enough qubits"
+
+    # Add environment
+    circuit = cirq.Circuit()
+    circuit.append(rightEnvGate.on(*Qubits[-2:]))
+
+    # Add MPS
+    for i in reversed(range(N)):
+        q0, q1 = Qubits[i], Qubits[i+1]
+        circuit.append(StateGate.on(q0, q1))
+
+    return circuit
 
 
 def OverlapCircuitEnv(θA, θB, Q, N, Ne=0, ψA=None, ψB=None,

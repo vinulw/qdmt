@@ -4,7 +4,7 @@ from environment import generate_environment_unitary
 from environment import generate_state_transferMatrix, generate_right_environment
 from ncon import ncon
 
-def partial_density_matrix(A, R, N=1, ignored_indices=[]):
+def partial_density_matrix(A, R, N=1, ignored_indices=[], halfEnv=False):
     '''
     Construct a partial density matrix ρA out of state and environment tensor.
 
@@ -39,6 +39,9 @@ def partial_density_matrix(A, R, N=1, ignored_indices=[]):
         else:
             contr = ncon([contr, A, Aconj], (contrindices, (1, 3, minInd-1), (2, 3, minInd-2)))
 
+    if halfEnv:
+        contr = ncon([contr, R, R.conj()], (contrindices, (1, 3), (2, 3)))
+        return contr
     contr = ncon([contr, R], (contrindices, (1, 2)))
     return contr
 
