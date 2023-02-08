@@ -29,22 +29,15 @@ def partial_density_matrix(A, R, N=1, ignored_indices=[]):
         contrindices = [1, 2]
 
     for i in range(N-1):
-        print("Contraction step: ", i)
-        print("Cont obj shape: ", contr.shape)
-        print("Contr indices: ", contrindices)
         n = i+1
         minInd = min(contrindices)
         if minInd > 0:
             minInd = 0
         if n in ignored_indices:
-            print("Contracting: ", (contrindices, (1, minInd-1, minInd-3), (2, minInd-2, minInd-4)))
             contr = ncon([contr, A, Aconj], (contrindices, (1, minInd-1, minInd-3), (2, minInd-2, minInd-4)))
             contrindices = contrindices[:-2] + [minInd-1, minInd-2, 1, 2]
         else:
-            print("Contracting: ", (contrindices, (1, 3, minInd-1), (2, 3, minInd-2)))
             contr = ncon([contr, A, Aconj], (contrindices, (1, 3, minInd-1), (2, 3, minInd-2)))
-
-        print("")
 
     contr = ncon([contr, R], (contrindices, (1, 2)))
     return contr
