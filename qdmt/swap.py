@@ -183,8 +183,9 @@ if __name__ == "__main__":
     circuit = AddMeasure(circuit, QA, 'MA')
     circuit = AddMeasure(circuit, QB, 'MB')
 
+    Nshots = 10000
     print(circuit.to_text_diagram(transpose=True))
-    res = SimulateCircuitLocalNoiseless(circuit, 10000)
+    res = SimulateCircuitLocalNoiseless(circuit, Nshots)
 
     measA = res.data['MA'].tolist()
     measB = res.data['MB'].tolist()
@@ -205,7 +206,20 @@ if __name__ == "__main__":
         print(f"{bitsA[i]}  :  {bitsB[i]}  :  {bitwiseAndAB[i]}  :  {evenparityAB[i]}")
 
     probEven = sum(evenparityAB) / len(evenparityAB)
+    traceCircuit = 2*probEven - 1
+
     print(f"Prob even parity: {probEven}")
+    print(f"Trace on circuit: {traceCircuit}")
+
+    pFailure = 0
+    for a, b in zip(bitsA, bitsB):
+        if a[0] == 1 and b[0] == 1:
+            pFailure += 1
+    pFailure = pFailure / Nshots
+    print(f"Prob failure: {pFailure}")
+    pSuccess = 1.0 - pFailure
+    traceCircuit = 2*pSuccess - 1
+    print(f"Trace on circuit: {traceCircuit}")
 
     # Calculating the trρAρB classically
     ρA = partial_density_matrix(A, RA, N=3, ignored_indices=[1], halfEnv=True)
@@ -252,3 +266,8 @@ if __name__ == "__main__":
 
     print('Checking ρCircuitB == ρB')
     print(np.allclose(ρB, ρCircuitB))
+
+    from dmt_overlap import trace_distance
+
+    print("Trace distance ρCircuitB, ρB")
+    print(trace_distance(ρCircuitB, ρB))
