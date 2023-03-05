@@ -330,7 +330,7 @@ def SwapTestOps(Qs):
     Add destructive SWAP test between Qs = [QA, QB]
     '''
     assert len(Qs) == 2, "Need to perform SWAP test across two qubits"
-    return [cirq.CNOT(*Qs), cirq.H(Qs[1])]
+    return [cirq.CNOT(*Qs), cirq.H(Qs[0])]
 
 
 def Gate_to_Unitary(params, Ansatz):
