@@ -24,6 +24,7 @@ def unitary_to_tensor_left(U):
     A = A.reshape(2**(n-1), 2, 2**(n-1))
     return A
 
+
 if __name__=="__main__":
     from circuits import StateAnsatzXZ
     import cirq

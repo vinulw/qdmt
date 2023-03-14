@@ -3,6 +3,8 @@ from numpy import kron, trace, eye
 from itertools import product
 from functools import reduce
 import numpy as np
+from ncon import ncon
+from numpy import zeros
 
 Sx = np.array([[0, 1],
                [1, 0]], dtype=complex)
@@ -44,3 +46,7 @@ class Hamiltonian:
         self.strings = {a+b:trace(kron(a, b)@mat) for a, b in strings}
         del self.strings['II']
         return self
+
+def expectation_H(H, ρ):
+    return ncon([H, ρ], ((1, 2), (2, 1)))
+
