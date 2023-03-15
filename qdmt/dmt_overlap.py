@@ -112,6 +112,26 @@ def trace_distance(ρA, ρB):
 
     return trρAρA + trρBρB - 2*trρAρB
 
+def trρAρB(ρA, ρB):
+    assert ρA.shape == ρB.shape , 'ρA and ρB need to have matching dimensions'
+
+    n = len(ρA.shape)
+
+    assert n % 2 == 0
+
+    contr0 = list(range(1, n+1))
+    contr1 = []
+    for i in range(n):
+        if i % 2 == 0:
+            contr1.append(contr0[i+1] )
+        else:
+            contr1.append(contr0[i-1])
+
+    trρAρB = ncon([ρA, ρB], (contr0, contr1))
+
+    return trρAρB
+
+
 def test_trace_distance():
     np.random.seed(1)
     d= 2

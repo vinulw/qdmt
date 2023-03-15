@@ -27,20 +27,6 @@ def rho_theta(θ, N, d=2, D=2, ignored_indices=None, Ansatz=StateAnsatzXZ):
     norm = ncon([RA,], ((1, 1),))
     RA = RA / norm
 
-    #RA = RA / np.linalg.norm(RA)
-
-    # Generate the environment
-    #s = np.eye(D**2)[0]
-    #RUA = generate_environment_unitary(A, D=D)
-    #RA = RUA @ s
-    #RA = RA.reshape(D, D)
-
-
-    overlap = ncon([A, A.conj(), RA], ((1, 2, 3), (1, 2, 4), (4, 3)))
-    # print('Explicit overlap' , overlap)
-
-    #RA = generate_right_environment()
-
     if ignored_indices is None:
         ignored_indices = range(N)
 
@@ -129,8 +115,18 @@ if __name__=="__main__":
     rho_obj_f = lambda x: rho_objective_function(x, H)
 
     res = minimize(rho_obj_f, θ)
+    θgs = res.x
 
     print('Final energy ρ : ', res)
+    print(θgs)
+
+    from datetime import datetime
+    now = datetime.now()
+    now = now.strftime("%d%m%Y%H%M%S")
+    gs_fname = f'gs_{g}_{now}'
+    print(f'Saving gs file as : {gs_fname}.npy')
+
+    np.save(gs_fname, θgs)
 
 
 
