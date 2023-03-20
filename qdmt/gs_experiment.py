@@ -75,11 +75,13 @@ def two_site_objective_function(θ, H):
 
 
 if __name__=="__main__":
+    from datetime import datetime
     θ = np.random.rand(8)
     d = 2
     D = 2
     N = 2
     g = 1.5
+    save = False
 
     ρ = rho_theta(θ, N, d, D)
 
@@ -110,23 +112,93 @@ if __name__=="__main__":
 
     res = minimize(obj_f, θ)
 
-    print('Final energy ψ : ', res)
+    print('Final energy ψ : ', res.fun)
+    print(res.x)
 
     rho_obj_f = lambda x: rho_objective_function(x, H)
 
     res = minimize(rho_obj_f, θ)
     θgs = res.x
 
-    print('Final energy ρ : ', res)
+    print('Final energy ρ : ', res.fun)
     print(θgs)
 
-    from datetime import datetime
-    now = datetime.now()
-    now = now.strftime("%d%m%Y%H%M%S")
-    gs_fname = f'gs_{g}_{now}'
-    print(f'Saving gs file as : {gs_fname}.npy')
+    if save:
+        now = datetime.now()
+        now = now.strftime("%d%m%Y%H%M%S")
+        gs_fname = f'gs_{g}_{now}'
+        print(f'Saving gs file as : {gs_fname}.npy')
 
-    np.save(gs_fname, θgs)
+        np.save(gs_fname, θgs)
 
+    ####
+    # Attempting imaginary time evolution groundstate search
+    ####
+    from scipy.linalg import expm
+    from dmt_overlap import trace_distance
+    from tqdm import tqdm
+    import matplotlib.pyplot as plt
+
+    print('Performing imaginary time evolution ...')
+
+    dt = 0.01
+    max_t = 1.0
+    ts = np.arange(0, max_t, dt)
+
+    d = 2
+    D = 2
+    N = 4
+
+    H = Hamiltonian({'ZZ':-1, 'X': 1.5}).to_matrix()
+    U = expm(-1*H*dt*2.0)
+    U = U.reshape(2, 2, 2, 2)
+    H = H.reshape(2, 2, 2, 2)
+    θ0 = np.random.rand(θgs.shape[0])
+
+    def objective_func_trace(θdt, ρ0dt):
+        ρt = rho_theta(θdt, N, d, D)
+        cost = np.abs(trace_distance(ρt, ρ0dt))
+        return cost
+
+    ρ0 = rho_theta(θ0, N, d, D)
+    print('Made initial ρ')
+
+    ρ_curr = np.copy(ρ0)
+    θ_curr = np.copy(θ0)
+
+    energies = np.zeros(ts.shape[0])
+    energies[0] = rho_objective_function(θ0, H)
+
+    trace_dists = np.zeros(ts.shape[0] - 1)
+
+    for i, t in tqdm(enumerate(ts[1:]), total=len(ts[1:])):
+        ρcurrdt = ncon([U, U, ρ_curr, U.conj(), U.conj()],
+                       ((-1, -3, 1, 3), (-5, -7, 5, 7),
+                       (1, 2, 3, 4, 5, 6, 7, 8),
+                       (-2, -4, 2, 4), (-6, -8, 6, 8)))
+                       #(2, 4, -2, -4), (6, 8, -6, -8)))
+
+        res = minimize(objective_func_trace, θ_curr, args=(ρcurrdt))
+
+        θ_curr = res.x
+        ρ_curr = rho_theta(θ_curr, N, d, D)
+
+        energies[i+1] = rho_objective_function(θ_curr, H)
+        trace_dists[i] = res.fun
+
+        if res.success is False:
+            tqdm.write(f"Step: {i}")
+            tqdm.write(f"   Obj func : {res.fun}")
+            tqdm.write(f"   Message: {res.message}")
+
+    print('Final energy : ', energies[-1])
+    print(θ_curr)
+    plt.figure()
+    plt.title('Energies')
+    plt.plot(energies)
+    plt.figure()
+    plt.title('Trace distances')
+    plt.plot(ts[1:], trace_dists)
+    plt.show()
 
 
