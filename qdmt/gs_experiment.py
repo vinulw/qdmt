@@ -73,6 +73,37 @@ def two_site_objective_function(θ, H):
 
     return E
 
+def evolve_ρ(ρ, U):
+    '''
+    Evole ρ using ρ(t + dt) = U ρ U^\dagger
+    '''
+    m = len(ρ.shape) // 2
+    n = len(U.shape) // 2
+
+    ρ_curr = np.copy(ρ)
+
+    assert m % n == 0, 'U and ρ dimensions do not match'
+
+    N = m // n
+    len_i = len(ρ.shape)
+
+    curr_i = 1
+    for _ in range(N):
+        U_con = (-curr_i, -curr_i - 2, curr_i, curr_i + 2)
+        U_dag_con = (curr_i + 1, curr_i + 3, -curr_i - 1, -curr_i - 3)
+
+        ρ_con = list(range(-1, -len_i - 1, -1))
+        ρ_con[curr_i - 1] = curr_i
+        ρ_con[curr_i] = curr_i + 1
+        ρ_con[curr_i + 1] = curr_i + 2
+        ρ_con[curr_i + 2] = curr_i + 3
+
+        ρ_curr = ncon([U, ρ_curr, U.conj()], (U_con, ρ_con, U_dag_con))
+
+        curr_i += 4
+
+    return ρ_curr
+
 
 if __name__=="__main__":
     from datetime import datetime
@@ -147,7 +178,7 @@ if __name__=="__main__":
 
     d = 2
     D = 2
-    N = 4
+    N = 6
 
     H = Hamiltonian({'ZZ':-1, 'X': 1.5}).to_matrix()
     U = expm(-1*H*dt*2.0)
@@ -172,11 +203,13 @@ if __name__=="__main__":
     trace_dists = np.zeros(ts.shape[0] - 1)
 
     for i, t in tqdm(enumerate(ts[1:]), total=len(ts[1:])):
-        ρcurrdt = ncon([U, U, ρ_curr, U.conj(), U.conj()],
-                       ((-1, -3, 1, 3), (-5, -7, 5, 7),
-                       (1, 2, 3, 4, 5, 6, 7, 8),
-                       (-2, -4, 2, 4), (-6, -8, 6, 8)))
-                       #(2, 4, -2, -4), (6, 8, -6, -8)))
+#        ρcurrdt = ncon([U, U, ρ_curr, U.conj(), U.conj()],
+#                       ((-1, -3, 1, 3), (-5, -7, 5, 7),
+#                       (1, 2, 3, 4, 5, 6, 7, 8),
+#                       (-2, -4, 2, 4), (-6, -8, 6, 8)))
+#                       #(2, 4, -2, -4), (6, 8, -6, -8)))
+
+        ρcurrdt = evolve_ρ(ρ_curr, U)
 
         res = minimize(objective_func_trace, θ_curr, args=(ρcurrdt))
 
@@ -195,7 +228,7 @@ if __name__=="__main__":
     print(θ_curr)
     plt.figure()
     plt.title('Energies')
-    plt.plot(energies)
+    plt.plot(ts, energies)
     plt.figure()
     plt.title('Trace distances')
     plt.plot(ts[1:], trace_dists)
