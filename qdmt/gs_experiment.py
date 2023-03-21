@@ -88,6 +88,47 @@ def evolve_ρ(ρ, U):
     len_i = len(ρ.shape)
 
     curr_i = 1
+    ρ_con = list(range(-1, -len_i - 1, -1))
+    U_cons = [None]*N
+    U_dag_cons = [None]*N
+    for i in range(N):
+        U_con = (-curr_i, -curr_i - 2, curr_i, curr_i + 2)
+        U_dag_con = (curr_i + 1, curr_i + 3, -curr_i - 1, -curr_i - 3)
+
+        ρ_con[curr_i - 1] = curr_i
+        ρ_con[curr_i] = curr_i + 1
+        ρ_con[curr_i + 1] = curr_i + 2
+        ρ_con[curr_i + 2] = curr_i + 3
+
+        U_cons[i] = U_con
+        U_dag_cons[i] = U_dag_con
+
+
+        curr_i += 4
+
+    arrs = [U] * N + [U.conj()] * N + [ρ_curr]
+    cons = U_cons + U_dag_cons + [ρ_con]
+
+    ρ_curr = ncon(arrs, cons)
+    return ρ_curr
+
+def evolve_ρ_sequential(ρ, U):
+    '''
+    Evole ρ using ρ(t + dt) = U ρ U^\dagger
+
+    Do this sequentially so as to avoid resource constraints.
+    '''
+    m = len(ρ.shape) // 2
+    n = len(U.shape) // 2
+
+    ρ_curr = np.copy(ρ)
+
+    assert m % n == 0, 'U and ρ dimensions do not match'
+
+    N = m // n
+    len_i = len(ρ.shape)
+
+    curr_i = 1
     for _ in range(N):
         U_con = (-curr_i, -curr_i - 2, curr_i, curr_i + 2)
         U_dag_con = (curr_i + 1, curr_i + 3, -curr_i - 1, -curr_i - 3)
@@ -142,6 +183,7 @@ if __name__=="__main__":
     obj_f = lambda x: two_site_objective_function(x, H)
 
     res = minimize(obj_f, θ)
+    exact_energy = res.fun
 
     print('Final energy ψ : ', res.fun)
     print(res.x)
@@ -173,12 +215,12 @@ if __name__=="__main__":
     print('Performing imaginary time evolution ...')
 
     dt = 0.01
-    max_t = 1.0
+    max_t = 10.0
     ts = np.arange(0, max_t, dt)
 
     d = 2
     D = 2
-    N = 6
+    N = 2
 
     H = Hamiltonian({'ZZ':-1, 'X': 1.5}).to_matrix()
     U = expm(-1*H*dt*2.0)
@@ -195,12 +237,16 @@ if __name__=="__main__":
     print('Made initial ρ')
 
     ρ_curr = np.copy(ρ0)
+    ρ_curr_dir = np.copy(ρ0) # Directly evolving the density matrix
     θ_curr = np.copy(θ0)
 
     energies = np.zeros(ts.shape[0])
     energies[0] = rho_objective_function(θ0, H)
 
     trace_dists = np.zeros(ts.shape[0] - 1)
+
+    energies_exact = np.zeros(ts.shape[0])
+    energies_exact[0] = energies[0]
 
     for i, t in tqdm(enumerate(ts[1:]), total=len(ts[1:])):
 #        ρcurrdt = ncon([U, U, ρ_curr, U.conj(), U.conj()],
@@ -229,6 +275,11 @@ if __name__=="__main__":
     plt.figure()
     plt.title('Energies')
     plt.plot(ts, energies)
+    plt.figure()
+    fig, ax = plt.subplots()
+    plt.title('Error in energy')
+    ax.plot(ts, np.abs(energies - exact_energy))
+    ax.set_yscale('log')
     plt.figure()
     plt.title('Trace distances')
     plt.plot(ts[1:], trace_dists)
