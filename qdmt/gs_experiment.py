@@ -112,6 +112,80 @@ def evolve_ρ(ρ, U):
     ρ_curr = ncon(arrs, cons)
     return ρ_curr
 
+def evolve_ρ_trotter(ρ, U):
+    '''
+    Evolve ρ using the first order trotterisation of a single site
+    '''
+    N = len(ρ.shape) // 2
+    assert N == 4 , 'For now the implementation only handles a single iteration of the transfer matrix'
+    ρ_curr = np.copy(ρ)
+
+    len_i = len(ρ.shape)
+
+    # Apply odd layers
+    Nodd = N // 2
+    ρ_con = list(range(-1, -len_i - 1, -1))
+    U_cons = [None] * Nodd
+    U_dag_cons = [None] * Nodd
+    count = 0
+    for i in range(1, N*2, 4):
+        U_con = (-i, -i-2, i, i+2)
+        U_dag_con = (i+1, i+3, -i-1, -i-3)
+
+        ρ_con[i - 1] = i
+        ρ_con[i] = i + 1
+        ρ_con[i + 1] = i + 2
+        ρ_con[i + 2] = i + 3
+
+        U_cons[count] = U_con
+        U_dag_cons[count] = U_dag_con
+        count+=1
+
+    #print(ρ_con)
+    #print(U_cons)
+    #print(U_dag_cons)
+    arrs = [U] * Nodd + [U.conj()] * Nodd + [ρ_curr]
+    cons = U_cons + U_dag_cons + [ρ_con]
+    ρ_curr = ncon(arrs, cons)
+
+    # Apply even layers
+    Neven = (N-1) // 2
+    ρ_con = list(range(-1, -len_i - 1, -1))
+    U_cons = [None] * Neven
+    U_dag_cons = [None] * Neven
+    count = 0
+    for i in range(3, N*2-1, 4):
+        U_con = (-i, -i-2, i, i+2)
+        U_dag_con = (i+1, i+3, -i-1, -i-3)
+
+        ρ_con[i - 1] = i
+        ρ_con[i] = i + 1
+        ρ_con[i + 1] = i + 2
+        ρ_con[i + 2] = i + 3
+
+        U_cons[count] = U_con
+        U_dag_cons[count] = U_dag_con
+        count+=1
+
+    #print(ρ_con)
+    #print(U_cons)
+    #print(U_dag_cons)
+    arrs = [U] * Neven + [U.conj()] * Neven + [ρ_curr]
+    cons = U_cons + U_dag_cons + [ρ_con]
+    ρ_curr = ncon(arrs, cons)
+
+    # Contract the corner tensors
+    ρ_con = list(range(-1, -len_i - 1, -1))
+    ρ_con[0] = 1
+    ρ_con[1] = 1
+    ρ_con[-1] = 2
+    ρ_con[-2] = 2
+
+    ρ_curr = ncon([ρ_curr], [ρ_con])
+    return ρ_curr
+
+
+
 def evolve_ρ_sequential(ρ, U):
     '''
     Evole ρ using ρ(t + dt) = U ρ U^\dagger
@@ -228,7 +302,8 @@ if __name__=="__main__":
 
     d = 2
     D = 2
-    N = 2
+    N = 4
+    Ngs = 2
 
     H = Hamiltonian({'ZZ':-1, 'X': 1.5}).to_matrix()
     U = expm(-1*H*dt*2.0)
@@ -237,7 +312,12 @@ if __name__=="__main__":
     θ0 = np.random.rand(θgs.shape[0])
 
     def objective_func_trace(θdt, ρ0dt):
+        N = len(ρ0dt.shape) // 2
+        # Commented out for 4 site
+        #N = 4
         ρt = rho_theta(θdt, N, d, D)
+        # Comment below for 4 site
+        #ρt = ncon([ρt], ((1, 1, -1, -2, -3, -4, 2, 2)))
         ρt = normalise_ρ(ρt)
         cost = np.abs(trace_distance(ρt, ρ0dt))
         return cost
@@ -260,13 +340,13 @@ if __name__=="__main__":
     energies_exact = np.zeros(ts.shape[0])
     energies_exact[0] = energies[0]
 
-    ρgs = rho_theta(θgs, N, d, D)
+    ρgs = rho_theta(θgs, Ngs, d, D)
     # ρgs = normalise_ρ(ρgs)
     #ρgs = ρgs / np.real(ncon((ρgs, ), (norm_con, )))
     gs_energy = ncon([H, ρgs], ((1, 2, 3, 4), (3, 1, 4, 2)))
     gs_energy = np.real(gs_energy)
     print('Target gs energy: ', gs_energy)
-    print('GS norm: ', np.real(ncon((ρgs, ), (norm_con, ))))
+    #print('GS norm: ', np.real(ncon((ρgs, ), (norm_con, ))))
 
 
     for i, t in tqdm(enumerate(ts[1:]), total=len(ts[1:])):
@@ -276,7 +356,8 @@ if __name__=="__main__":
 #                       (-2, -4, 2, 4), (-6, -8, 6, 8)))
 #                       #(2, 4, -2, -4), (6, 8, -6, -8)))
 
-        ρcurrdt = evolve_ρ(ρ_curr, U)
+        #ρcurrdt = evolve_ρ(ρ_curr, U)
+        ρcurrdt = evolve_ρ_trotter(ρ_curr, U)
         ρcurrdt = normalise_ρ(ρcurrdt)
         #ρ_curr_dir = evolve_ρ(ρ_curr_dir, U)
         #ρ_curr_dir = normalise_ρ(ρ_curr_dir)
@@ -286,7 +367,7 @@ if __name__=="__main__":
 
         θ_curr = res.x
         ρ_curr = rho_theta(θ_curr, N, d, D)
-        ρ_curr = normalise_ρ(ρ_curr)
+        #ρ_curr = normalise_ρ(ρ_curr)
         #ρ_curr = ρ_curr / np.real(ncon((ρ_curr, ), (norm_con, )))
 
         energies[i+1] = rho_objective_function(θ_curr, H)
