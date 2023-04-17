@@ -7,6 +7,8 @@ from itertools import product
 from numpy.linalg import qr
 from scipy.sparse.linalg import eigs
 
+import matplotlib.pyplot as plt
+
 Sx = np.array([[0, 1],
                [1, 0]], dtype=complex)
 Sy = np.array([[0, 1j],
@@ -52,16 +54,20 @@ def left_orthonomalize(A, L0, tol=1e-5):
     '''
     Gauge transform A into left orthonormal form.
     '''
-    σ, al, ar = A.shape
+    al, σ, ar = A.shape
     ll, lr = L0.shape
 
     L = L0/np.linalg.norm(L0)
     Lold = np.copy(L)
 
     Al, L = qr(ncon([A, L], ((1, -2, -3), (-1, 1))).reshape(σ*ll, -1))
+    Al = Al.reshape(al, σ, ar)
 
     λ = np.linalg.norm(L)
     L = L / λ
+
+    print(f'Al shape: {Al.shape}')
+    print(f'L.shape: {L.shape}')
 
     δ = np.linalg.norm(L - Lold)
 
@@ -70,27 +76,53 @@ def left_orthonomalize(A, L0, tol=1e-5):
         return ncon([A, Al_curr.conj()], ((-1, 1, -3), (-2, 1,
             -4))).reshape(All*All, Alr*Alr)
 
-    while δ > tol:
+    maxiter = 100
+    count = 0
+    errors = []
+    print('Starting search for L...')
+    while δ > tol and maxiter > count:
         E = E_map(Al)
+        L = largest_evec_left(E, l0=L.reshape(-1))
+        L = L.reshape(ll, lr)
 
-def largest_evec_left(E):
+        _, L = qr(L)
+        L = L / np.linalg.norm(L)
+        Lold = np.copy(L)
+
+        Al, L = qr(ncon([A, L], ((1, -2, -3), (-1, 1))).reshape(σ*ll, -1))
+        Al = Al.reshape(al, σ, ar)
+        λ = np.linalg.norm(L)
+        L = L / λ
+
+        δ = np.linalg.norm(L - Lold)
+        errors.append(δ)
+        count += 1
+
+    print('Search for L finished...')
+
+    plt.plot(errors)
+    plt.show()
+    return Al, L, λ
+
+def largest_evec_left(E, l0 = None):
     '''
     Find leading eigenvector v of E such that vE = λv
     '''
     Eh = E.conj().transpose()
+    l0 = l0.conj().transpose()
 
-    w, v = eigs(Eh, k=1, which='LM')
+    w, v = eigs(Eh, k=1, which='LM', v0=l0)
 
     e = v[:, 0]
     e = e.conj().transpose()
 
     return e
 
-def largest_evec_right(E):
+def largest_evec_right(E, r0 = None):
     '''
     Find leading eigenvector v of E such that Ev = λv
     '''
-    w, v = eigs(E, k=1, which='LM')
+    w, v = eigs(E, k=1, which='LM', v0=r0)
 
     e = v[:, 0]
 
@@ -112,52 +144,19 @@ def mixed_canonical(A, tol):
     pass
 
 if __name__=="__main__":
-    print('Testing evec generator')
-    N = 10
+    N = 4
+    σ = 2
+    A = np.random.rand(N, σ,  N) + 1j*np.random.rand(N, σ, N)
+    L0 = np.random.rand(N, N) + 1j*np.random.rand(N, N)
+    L0 = L0/np.linalg.norm(L0)
 
-    A = np.random.rand(N, N) + 1j * np.random.rand(N, N)
+    Al, L, λ = left_orthonomalize(A, L0)
 
-    w, v = eigs(A)
+    LA = ncon([L, A], ((-1, 1), (1, -2, -3)))
+    AlL = ncon([Al, L], ((-1, -2, 1), (1, -3)))
 
-    e = v[:, 0]
 
-    print(w[0])
-    print(e)
-
-    Ae = A@e
-
-    λs = Ae / e
-    maxL = np.max(λs)
-    minL = np.min(λs)
-    print(maxL)
-    print(minL)
-    print(np.allclose(maxL, minL))
-
-    e_func = largest_evec_right(A)
-    fun_ratio = e / e_func
-    print('Func working: ', np.allclose(fun_ratio, fun_ratio[0]))
-
-    print('Now trying left eigenvector')
-
-    Ah = A.conj().transpose()
-    w, v = eigs(Ah)
-
-    e = v[:, 0]
-    e = e.conj().transpose()
-    print(e)
-    print(w[0])
-
-    eA = e@A
-
-    λs = eA / e
-
-    maxL = np.max(λs)
-    minL = np.min(λs)
-    print(maxL)
-    print(minL)
-    print(np.allclose(maxL, minL))
-
-    e_func = largest_evec_left(A)
-    fun_ratio = e / e_func
-    print('Func working: ', np.allclose(fun_ratio, fun_ratio[0]))
-
+    ratio = LA/AlL
+    print(LA / AlL)
+    print(np.max(ratio))
+    print(np.min(ratio))
