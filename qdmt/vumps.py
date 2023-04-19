@@ -29,6 +29,15 @@ def random_mixed_gauge(d, D):
     AL = (la.svd(AL, full_matrices=False)[0]).reshape(D, d, D)
     AR = (la.svd(AR, full_matrices=False)[2]).reshape(D, d, D)
 
+    # Normalize the TM
+    TML = ncon([AL, AL.conj()], ((-1, 1, -3), (-2, 1, -4)))
+    _, S, _ = la.svd(TML.reshape(D**2, D**2))
+    AL = AL / np.sqrt(S[0])
+
+    TMR = ncon([AR, AR.conj()], ((-1, 1, -3), (-2, 1, -4)))
+    _, S, _ = la.svd(TMR.reshape(D**2, D**2))
+    AR = AR / np.sqrt(S[0])
+
     return AL, AR, C
 
 def evaluateEnergy(AL, AR, C, h):
@@ -65,10 +74,6 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100):
 
         h_shifted = h - e*np.eye(d**2)
         h_shifted = h_shifted.reshape(d, d, d, d)
-
-        print('h shifted energy expecation')
-        e_shifted = evaluateEnergy(AL, AR, C, h_shifted)
-        print(e_shifted)
 
         LH = sumLeft(AL, h_shifted)
         RH = sumRight(AR, h_shifted)
@@ -137,8 +142,25 @@ def sumLeft(AL, h, tol=1e-8):
     ELL = ncon([AL, AL.conj()], ((-1, 1, -3), (-2, 1, -4)))
     ELL = ELL.reshape(D*D, D*D)
 
+    print('Checking singular values of AL...')
+    U, S, V = la.svd(AL.reshape(d*D, D))
+    print(S)
+
+    print('Verifying AL canonicalisation...')
+    ALAL = ncon([AL, AL.conj()], ((1, 2, -1), (1, 2, -2)))
+    I = np.eye(D)
+    print(ALAL)
+    print(np.allclose(ALAL, I))
+
+    # Check the Schmidt values of transfer matrix
+    print('Checking singular values of TM...')
+    U, S, V = la.svd(ELL)
+    print(S)
+
+
     e_left = largest_evec_left(ELL)
     e_right = largest_evec_right(ELL)
+    assert()
 
     # To check if the evecs are correct
     #ELLten = ELL.reshape(D, D, D, D)
@@ -155,6 +177,7 @@ def sumLeft(AL, h, tol=1e-8):
     #Q = np.eye(D**2) - P # Not sure if this should wrap pseudo inverse
 
     E_psuedo = np.eye(D**2)  - (ELL - P)
+    # E_psuedo = np.eye(D**2)  - (ELL)
     E_psuedoL = E_psuedo.conj().T
 
     Hl_dag = Hl.reshape(-1).conj().T
@@ -163,7 +186,7 @@ def sumLeft(AL, h, tol=1e-8):
     # print(exitcode)
     L = solve(E_psuedoL, Hl_dag)
 
-    mapL = E_psuedoL.dot(L)
+    # mapL = E_psuedoL.dot(L)
     # print('Checking dot product...')
     # print(np.allclose(mapL, E_psuedoL @ L))
 
@@ -174,9 +197,9 @@ def sumLeft(AL, h, tol=1e-8):
     # print(np.linalg.norm(mapL - Hl_dag))
 
     Lh = L.conj().transpose().reshape(D, D)
-    E_pseudo = E_psuedo.reshape(D, D, D, D)
+    # E_pseudo = E_psuedo.reshape(D, D, D, D)
 
-    map_Lh = ncon([E_pseudo, Lh], ((1, 2, -1, -2), (1, 2)))
+    # map_Lh = ncon([E_pseudo, Lh], ((1, 2, -1, -2), (1, 2)))
 
     # print(np.allclose(map_Lh, Hl, atol=1e-5))
     # print(np.linalg.norm(map_Lh - Hl))
@@ -200,6 +223,7 @@ def sumRight(AR, h, tol=1e-8):
 
     P = np.outer(e_right, e_left)
     E_psuedo = np.eye(D**2)  - (ELL - P)
+    # E_psuedo = np.eye(D**2)  - (ELL)
 
     R = solve(E_psuedo, Hr.reshape(-1)) # Replace with bicstag for large D
 
@@ -264,6 +288,8 @@ if __name__=="__main__":
 
     print('Checking sum Left...')
     sumLeft(AL, H)
+
+    assert()
 
     print('Checking sum right...')
     sumRight(AR, H)
