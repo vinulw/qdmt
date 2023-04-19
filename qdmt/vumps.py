@@ -142,40 +142,27 @@ def sumLeft(AL, h, tol=1e-8):
 
     ELL = ncon([AL, AL.conj()], ((-1, 1, -3), (-2, 1, -4)))
     ELL = ELL.reshape(D*D, D*D)
+    U, S, V = la.svd(ELL)
 
-    e_left = largest_evec_left(ELL)
-    e_right = largest_evec_right(ELL)
+    print('Singular values before...')
+    print(S)
 
-    # To check if the evecs are correct
-    #ELLten = ELL.reshape(D, D, D, D)
-    #e_left = e_left.reshape(D, D)
-    #e_right = e_right.reshape(D, D)
+    print('Projecting out leading order...')
+    S[0] = 0
+    E_tilde = U @ np.diag(S) @ V
 
-    #out =  ncon([e_left, ELLten], ((1, 2), (1, 2, -1, -2)))
-    #print(np.allclose(out, e_left)) # Largest eigenval = 1
+    #e_left = largest_evec_left(ELL).reshape(D, D)
+    #e_right = largest_evec_right(ELL).reshape(D, D)
 
-    #out =  ncon([e_right, ELLten], ((1, 2), (-1, -2, 1, 2)))
-    #print(np.allclose(out, e_right))
-
-    e_right = e_right.reshape(D, D)
-    e_left = e_left.reshape(D, D)
-    P = ncon([e_right, e_left], ((-1, -2), (-3, -4)))#.reshape(D**2, D**2)
-
-    ELLP = ncon([ELL.reshape(D, D, D, D), P], ((-1, -2, 1, 2), (1, 2, -3, -4)))
-
-    print(np.allclose(ELLP, P))
-    P = P.reshape(D**2, D**2)
-
-    print('Verifying construction of P')
-    PELL = ELL@P
-    print(np.allclose(PELL, P))
-    PELL = P@ELL
-    print(np.allclose(PELL, P))
-    assert()
+    #P = ncon([e_right, e_left], ((-1, -2), (-3, -4))).reshape(D**2, D**2)
     #Q = np.eye(D**2) - P # Not sure if this should wrap pseudo inverse
 
-    E_psuedo = np.eye(D**2)  - (ELL - P)
-    # E_psuedo = np.eye(D**2)  - (ELL)
+    #E_tilde = (ELL - P) # remove leading order term
+    #E_tilde = Q@ELL
+    print('Singular Values after...')
+    _, S, _ = la.svd(E_tilde)
+    print(S)
+    E_psuedo = np.eye(D**2)  - E_tilde
     E_psuedoL = E_psuedo.conj().T
 
     Hl_dag = Hl.reshape(-1).conj().T
@@ -284,7 +271,7 @@ def largest_evec_right(E, r0 = None, eval=False):
 if __name__=="__main__":
     d = 2
     D = 4
-    AL, AR, C = random_mixed_gauge(d, D)
+    AL, AR, C = random_mixed_gauge(d, D, normalise=True)
     C = np.diag(C)
 
     H = Hamiltonian({'ZZ':-1, 'X':0.2}).to_matrix()
