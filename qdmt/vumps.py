@@ -9,7 +9,7 @@ from scipy.linalg import polar
 import matplotlib.pyplot as plt
 from hamiltonian import Hamiltonian
 
-def random_mixed_gauge(d, D):
+def random_mixed_gauge(d, D, normalise=False):
     '''
     Generate a random mixed canonical uMPS state with bond dimension D and
     physical dimension d
@@ -30,13 +30,14 @@ def random_mixed_gauge(d, D):
     AR = (la.svd(AR, full_matrices=False)[2]).reshape(D, d, D)
 
     # Normalize the TM
-    TML = ncon([AL, AL.conj()], ((-1, 1, -3), (-2, 1, -4)))
-    _, S, _ = la.svd(TML.reshape(D**2, D**2))
-    AL = AL / np.sqrt(S[0])
+    if normalise:
+        TML = ncon([AL, AL.conj()], ((-1, 1, -3), (-2, 1, -4)))
+        _, S, _ = la.svd(TML.reshape(D**2, D**2))
+        AL = AL / np.sqrt(S[0])
 
-    TMR = ncon([AR, AR.conj()], ((-1, 1, -3), (-2, 1, -4)))
-    _, S, _ = la.svd(TMR.reshape(D**2, D**2))
-    AR = AR / np.sqrt(S[0])
+        TMR = ncon([AR, AR.conj()], ((-1, 1, -3), (-2, 1, -4)))
+        _, S, _ = la.svd(TMR.reshape(D**2, D**2))
+        AR = AR / np.sqrt(S[0])
 
     return AL, AR, C
 
@@ -142,25 +143,8 @@ def sumLeft(AL, h, tol=1e-8):
     ELL = ncon([AL, AL.conj()], ((-1, 1, -3), (-2, 1, -4)))
     ELL = ELL.reshape(D*D, D*D)
 
-    print('Checking singular values of AL...')
-    U, S, V = la.svd(AL.reshape(d*D, D))
-    print(S)
-
-    print('Verifying AL canonicalisation...')
-    ALAL = ncon([AL, AL.conj()], ((1, 2, -1), (1, 2, -2)))
-    I = np.eye(D)
-    print(ALAL)
-    print(np.allclose(ALAL, I))
-
-    # Check the Schmidt values of transfer matrix
-    print('Checking singular values of TM...')
-    U, S, V = la.svd(ELL)
-    print(S)
-
-
     e_left = largest_evec_left(ELL)
     e_right = largest_evec_right(ELL)
-    assert()
 
     # To check if the evecs are correct
     #ELLten = ELL.reshape(D, D, D, D)
@@ -173,7 +157,21 @@ def sumLeft(AL, h, tol=1e-8):
     #out =  ncon([e_right, ELLten], ((1, 2), (-1, -2, 1, 2)))
     #print(np.allclose(out, e_right))
 
-    P = np.outer(e_right, e_left)
+    e_right = e_right.reshape(D, D)
+    e_left = e_left.reshape(D, D)
+    P = ncon([e_right, e_left], ((-1, -2), (-3, -4)))#.reshape(D**2, D**2)
+
+    ELLP = ncon([ELL.reshape(D, D, D, D), P], ((-1, -2, 1, 2), (1, 2, -3, -4)))
+
+    print(np.allclose(ELLP, P))
+    P = P.reshape(D**2, D**2)
+
+    print('Verifying construction of P')
+    PELL = ELL@P
+    print(np.allclose(PELL, P))
+    PELL = P@ELL
+    print(np.allclose(PELL, P))
+    assert()
     #Q = np.eye(D**2) - P # Not sure if this should wrap pseudo inverse
 
     E_psuedo = np.eye(D**2)  - (ELL - P)
@@ -252,7 +250,7 @@ def minAcC(Ac, C):
     Ac_updated = (Pl_Ac @ Ul_Ac).reshape(D, d, D)
     return Al, Ar, Ac_updated, C_updated
 
-def largest_evec_left(E, l0 = None):
+def largest_evec_left(E, l0 = None, eval=False):
     '''
     Find leading eigenvector v of E such that vE = λv
     '''
@@ -265,15 +263,21 @@ def largest_evec_left(E, l0 = None):
     e = v[:, 0]
     e = e.conj().transpose()
 
+    if eval:
+        return e, w[0]
+
     return e
 
-def largest_evec_right(E, r0 = None):
+def largest_evec_right(E, r0 = None, eval=False):
     '''
     Find leading eigenvector v of E such that Ev = λv
     '''
     w, v = eigs(E, k=1, which='LM', v0=r0)
 
     e = v[:, 0]
+
+    if eval:
+        return e, w[0]
 
     return e
 
