@@ -7,6 +7,7 @@ from scipy.sparse.linalg import eigs
 from scipy.linalg import polar
 
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 from hamiltonian import Hamiltonian
 
 def random_mixed_gauge(d, D, normalise=False):
@@ -163,6 +164,33 @@ def sumLeft(AL, h, tol=1e-8):
     _, S, _ = la.svd(E_tilde)
     print(S)
     E_psuedo = np.eye(D**2)  - E_tilde
+
+
+    E_pinv = la.inv(E_psuedo)
+
+    print('Verifying inverse...')
+    print(np.allclose(np.eye(D**2), E_pinv @ E_psuedo))
+
+    errors = []
+
+    E_tilde_curr = np.copy(E_tilde)
+    E_tilde_sum = np.eye(D**2)
+    n = 100
+    print('Verifying that repetition approaches pseudo inverse...')
+    for i in tqdm(range(n), total=n):
+        # E_tilde_curr = ncon([E_tilde_curr, E_tilde], ((-1, 1), (1, -2)))
+        E_tilde_sum = E_tilde_sum + E_tilde_curr
+        E_tilde_curr = E_tilde @ E_tilde_curr
+
+        errors.append(la.norm(E_pinv - E_tilde_sum))
+
+        # print(f'Current error: {errors[-1]}')
+    plt.plot(errors)
+    plt.show()
+    assert()
+
+
+
     E_psuedoL = E_psuedo.conj().T
 
     Hl_dag = Hl.reshape(-1).conj().T
@@ -182,12 +210,27 @@ def sumLeft(AL, h, tol=1e-8):
     # print(np.linalg.norm(mapL - Hl_dag))
 
     Lh = L.conj().transpose().reshape(D, D)
-    # E_pseudo = E_psuedo.reshape(D, D, D, D)
+    E_pseudo = E_psuedo.reshape(D, D, D, D)
 
-    # map_Lh = ncon([E_pseudo, Lh], ((1, 2, -1, -2), (1, 2)))
+    map_Lh = ncon([E_pseudo, Lh], ((1, 2, -1, -2), (1, 2)))
 
-    # print(np.allclose(map_Lh, Hl, atol=1e-5))
-    # print(np.linalg.norm(map_Lh - Hl))
+    print(np.allclose(map_Lh, Hl, atol=1e-5))
+    print(np.linalg.norm(map_Lh - Hl))
+
+    assert()
+
+    # Sequentially apply Es to HL to verify convergence to LH
+    errors = []
+    HLE_curr = np.copy(Hl)
+    Etilde = E_tilde.reshape(D, D, D, D)
+    for i in range(100):
+        HLE_curr = ncon([HLE_curr, Etilde], ((1, 2), (1, 2, -1, -2)))
+        errors.append(np.linalg.norm(HLE_curr - Lh))
+
+        print(f'Current error: {errors[-1]}')
+    plt.plot(errors)
+    plt.show()
+    assert()
 
     return Lh
 
