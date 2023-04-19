@@ -63,13 +63,15 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100):
         energies.append(e)
         print(f'Current energy : {e}')
 
-        h_shifted = h - e*np.eye(h.shape[0])
-        h_shifted = h.reshape(d, d, d, d)
+        h_shifted = h - e*np.eye(d**2)
+        h_shifted = h_shifted.reshape(d, d, d, d)
+
+        print('h shifted energy expecation')
+        e_shifted = evaluateEnergy(AL, AR, C, h_shifted)
+        print(e_shifted)
 
         LH = sumLeft(AL, h_shifted)
         RH = sumRight(AR, h_shifted)
-
-        # TODO: Implementation still not complete
 
         # Construct Ac′
         AC = ncon([C, AR], ((-1, 1), (1, -2, -3)))
@@ -111,6 +113,11 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100):
 
         δ =  np.linalg.norm(H_AC - AL_HC)
         count += 1 # iteratre counter for maxiter
+
+        e = evaluateEnergy(AL, AR, C, h) # Calculate the final energy
+
+        print(f'Energy after opt: {e}')
+        breakpoint()
 
 
     e = evaluateEnergy(AL, AR, C, h) # Calculate the final energy
