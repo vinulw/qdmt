@@ -140,6 +140,7 @@ def sumLeft(AL, h, tol=1e-8):
     Hl = ncon((AL, AL, h, AL.conj(), AL.conj()),
             ((1, 2, 4), (1, 3, 5), (3, 7, 2, 6), (4, 6, -1), (5, 7, -2)))
 
+    # Construct reduced transfer matrix
     ELL = ncon([AL, AL.conj()], ((-1, 1, -3), (-2, 1, -4)))
     ELL = ELL.reshape(D*D, D*D)
     U, S, V = la.svd(ELL)
@@ -165,24 +166,24 @@ def sumRight(AR, h, tol=1e-8):
     Hr = ncon((AR, AR.conj(), h, AR, AR.conj()),
               ((-1, 1, 3), (-2, 2, 4), (2, 6, 1, 5), (3, 5, 7), (4, 6, 7)))
 
-
+    # Set up transfer matrix
     ELL = ncon([AR, AR.conj()], ((-1, 1, -3), (-2, 1, -4)))
     ELL = ELL.reshape(D*D, D*D)
 
-    e_left = largest_evec_left(ELL)
-    e_right = largest_evec_right(ELL)
+    U, S, V = la.svd(ELL)
+    S[0] = 0 # Projecting out leading order term
+    E_tilde = U @ np.diag(S) @ V
 
-    P = np.outer(e_right, e_left)
-    E_psuedo = np.eye(D**2)  - (ELL - P)
-    # E_psuedo = np.eye(D**2)  - (ELL)
-
+    # Setting up system of linear eq to solve for Lh
+    E_psuedo = np.eye(D**2)  - E_tilde
     R = solve(E_psuedo, Hr.reshape(-1)) # Replace with bicstag for large D
 
+    print('Checking that Rh == E_pinv @ Hr')
+    E_pinv = la.inv(E_psuedo)
+    Epinv_Hr = E_pinv @ Hr.reshape(-1)
+    print(np.linalg.norm(R - Epinv_Hr))
+    print(np.allclose(R, Epinv_Hr))
     Rh = R.reshape(D, D)
-    E_psuedo = E_psuedo.reshape(D, D, D, D)
-
-    map_Rh = ncon([E_psuedo, Rh], ((-1, -2, 1, 2), (1, 2)))
-    # print(np.allclose(map_Rh, Hr))
 
     return Rh
 
@@ -246,10 +247,11 @@ if __name__=="__main__":
     print('Checking sum Left...')
     sumLeft(AL, H)
 
-    assert()
-
     print('Checking sum right...')
     sumRight(AR, H)
+
+    assert()
+
 
     energy = evaluateEnergy(AL, AR, C, H)
     print('Trying vumps...')
