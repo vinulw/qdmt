@@ -163,7 +163,13 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100):
 
         AL, AR, ϵL, ϵR = minAcC(AC_prime, C_prime, errors=True)
 
-        C_prime = v[:, 0].reshape(D, D)
+        # Change to diagonal gauge
+        # TODO : Check if this is actually working correctly.
+        # U, C_prime, V = la.svd(C_prime)
+        # C_prime = np.diag(C_prime)
+        # AL = ncon([U.conj().T, AL, U], ((-1, 1), (1, -2, 2), (2, -3)))
+        # AR = ncon([V, AR, V.conj().T], ((-1, 1), (1, -2, 2), (2, -3)))
+        # AC_prime = ncon([U.conj().T, AC_prime, U], ((-1, 1), (1, -2, 2), (2, -3)))
 
         C = C_prime.copy()
         AC = AC_prime.copy()
