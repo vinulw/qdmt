@@ -8,10 +8,11 @@ by Glen Evenbly (c) for www.tensors.net, (v1.0) - last modified 07/2020
 
 import numpy as np
 from numpy import linalg as LA
-from tensornetwork import ncon
+from ncon import ncon
 from scipy.sparse.linalg import LinearOperator, eigsh, gmres
 from scipy.linalg import polar
 from typing import List, Optional
+import matplotlib.pyplot as plt
 
 
 def doVUMPS(AL: np.ndarray,
@@ -71,6 +72,7 @@ def doVUMPS(AL: np.ndarray,
   AC = ncon([AL, np.diag(C)], [[-1, -2, 1], [1, -3]])
 
   # Begin variational update iterations
+  energies = []
   for p in range(num_iter):
     """ Evaluate the energy """
     tensors = [AL, AL, h0, AL.conj(), AL.conj()]
@@ -86,6 +88,7 @@ def doVUMPS(AL: np.ndarray,
     energyR = np.trace(np.diag(C**2) @ hR0)
 
     energy = 0.25 * (energyL + energyR)
+    energies.append(energy)
     en_error = energy - en_exact
     print('iteration: %d of %d, dim: %d, energy: %4.4f, '
           'en-error: %2.2e' % (p, num_iter, m, energy, en_error))
@@ -199,6 +202,8 @@ def doVUMPS(AL: np.ndarray,
       AL = (ut @ vt).reshape(m, d, m)
       ut, _, vt = LA.svd(np.diag(C) @ AC.reshape(m, d * m), full_matrices=False)
       AR = (ut @ vt).reshape(m, d, m).transpose(2, 1, 0)
+  plt.plot(energies)
+  plt.show()
 
   return AL, C, AR, HL, HR
 
