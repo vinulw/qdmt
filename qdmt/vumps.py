@@ -44,6 +44,17 @@ def random_mixed_gauge(d, D, normalise=False):
 
     return AL, AR, C
 
+def normalise_A(A):
+    '''
+    Normalise A such that the transfer matrix of A has a leading eigenvalue of 1.
+    '''
+    D, _, _ = A.shape
+    TM = ncon([A, A.conj()], ((-1, 1, -3), (-2, 1, -4))).reshape(D**2, D**2)
+
+    _, S, _ = la.svd(TM)
+
+    return A / np.sqrt(S[0])
+
 def evaluateEnergy(AL, AR, C, h):
     '''
     Evaluate the expectation for energy <h> for a uMPS state in mixed canonical
@@ -71,6 +82,9 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100):
     δ = 1
     count = 0
     energies = []
+    error_δs = []
+    error_ϵLs = []
+    error_ϵRs = []
     while δ > tol and maxiter > count:
         e = evaluateEnergy(AL, AR, C, h)
         energies.append(e)
@@ -84,7 +98,9 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100):
 
         # Construct Ac′
         AC = ncon([C, AR], ((-1, 1), (1, -2, -3)))
-        I = np.eye(D) # Create identity map
+
+        # Create identity maps
+        I = np.eye(D)
         Id = np.eye(d)
 
         AC_map = ncon([AL, AL.conj(), h_shifted, I],
@@ -100,6 +116,8 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100):
 
         AC_prime = v[:, 0]
         AC_prime = AC_prime.reshape(D, d, D)
+        # Not sure if this is strictly necessary
+        AC_prime =  normalise_A(AC_prime)
 
         # Construct C′
         C_map = ncon([AL, AL.conj(), h_shifted, AR, AR.conj()],
@@ -113,7 +131,7 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100):
 
         C_prime = v[:, 0].reshape(D, D)
 
-        AL, AR, AC, C = minAcC(AC_prime, C_prime)
+        AL, AR, ϵL, ϵR = minAcC(AC_prime, C_prime, errors=True)
 
         # Check convergence
         H_AC = ncon([AC_map, AC], ((1, 2, 3, -1, -2, -3), (1, 2, 3)))
@@ -125,12 +143,28 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100):
 
         e = evaluateEnergy(AL, AR, C, h) # Calculate the final energy
 
-        print(f'Energy after opt: {e}')
-        breakpoint()
+        energies.append(e)
+        error_δs.append(δ)
+        error_ϵLs.append(ϵL)
+        error_ϵRs.append(ϵR)
 
+        print(f'Energy after opt: {e}')
+        print('Errors: ')
+        print(f'   δ: {δ}')
+        print(f'   ϵL: {ϵL}')
+        print(f'   ϵR: {ϵR}')
+
+    plt.figure()
+    plt.plot(error_δs)
+    plt.title('Error δ')
+
+    plt.figure()
+    plt.plot(error_ϵLs, label='ϵL')
+    plt.plot(error_ϵRs, label='ϵR')
+    plt.legend()
+    plt.title('Error ϵ{L/R}')
 
     e = evaluateEnergy(AL, AR, C, h) # Calculate the final energy
-    energies.append(e)
     return AL, AR, C, energies
 
 def sumLeft(AL, h, tol=1e-8):
@@ -177,32 +211,61 @@ def sumRight(AR, h, tol=1e-8):
     # Setting up system of linear eq to solve for Lh
     E_psuedo = np.eye(D**2)  - E_tilde
     R = solve(E_psuedo, Hr.reshape(-1)) # Replace with bicstag for large D
-
-    print('Checking that Rh == E_pinv @ Hr')
-    E_pinv = la.inv(E_psuedo)
-    Epinv_Hr = E_pinv @ Hr.reshape(-1)
-    print(np.linalg.norm(R - Epinv_Hr))
-    print(np.allclose(R, Epinv_Hr))
     Rh = R.reshape(D, D)
 
     return Rh
 
-def minAcC(Ac, C):
-    Ul_Ac, Pl_Ac = polar(Ac.reshape(D*d, D), side='left')
-    Ul_C, Pl_C = polar(C, side='left')
+def minAcC(Ac, C, errors=False):
+    Ul_Ac, _ = polar(Ac.reshape(D*d, D), side='left')
+    Ul_C, _ = polar(C, side='left')
 
     Al = Ul_Ac @ (Ul_C.conj().T)
     Al = Al.reshape(D, d, D)
 
-    Ur_Ac, Pr_Ac = polar(Ac.reshape(D*d, D), side='right')
-    Ur_C, Pr_C = polar(C, side='right')
+    Ur_Ac, _ = polar(Ac.reshape(D, D*d), side='right')
+    Ur_C, _ = polar(C, side='right')
 
-    Ar = Ur_Ac @ (Ur_C.conj().T)
+    Ar = (Ur_C.conj().T) @ Ur_Ac
     Ar = Ar.reshape(D, d, D)
 
-    C_updated = Pl_C @ Ul_C
-    Ac_updated = (Pl_Ac @ Ul_Ac).reshape(D, d, D)
-    return Al, Ar, Ac_updated, C_updated
+    print('Verigying Al canonical...')
+    AlAl = ncon([Al, Al.conj()], ((1, 2, -1), (1, 2, -2)))
+    print(np.allclose(AlAl, np.eye(D)))
+
+    print('Verigying Ar canonical...')
+    ArAr = ncon([Ar, Ar.conj()], ((-1, 1, 2), (-2, 1, 2)))
+    print(np.allclose(ArAr, np.eye(D)))
+
+    AlC = ncon([Al, C], ((-1, -2, 1), (1, -3)))
+    ϵL = np.linalg.norm(AlC - Ac) # Error in Al, should converge near optima
+
+    CAr = ncon([C, Ar], ((-1, 1), (1, -2, -3)))
+    ϵR = np.linalg.norm(CAr - Ac) # Error in Ar should converge near optima
+
+    # Don't think I need to do all of this
+    # # Diagonlise C and gauge transform Al and Ar
+    # print('Diagonalising C')
+    # U, C, V = la.svd(C)
+    # C = np.diag(C)
+    # Al = ncon([U.conj().T, Al, U], ((-1, 1), (1, -2, 2), (2, -3)))
+    # # Ar = ncon([V, Ar, V.conj().T], ((-1, 1), (1, -2, 2), (2, -3)))
+
+    # print('Verigying Al canonical...')
+    # AlAl = ncon([Al, Al.conj()], ((1, 2, -1), (1, 2, -2)))
+    # print(np.allclose(AlAl, np.eye(D)))
+
+    # print('Verigying Ar canonical...')
+    # ArAr = ncon([Ar, Ar.conj()], ((-1, 1, 2), (-2, 1, 2)))
+    # print(np.allclose(ArAr, np.eye(D)))
+
+    # print('Verifying Ac condition...')
+    # Ac = ncon([Al, C], ((-1, -2, 1), (1, -3)))
+    # Acr = ncon([C, Ar], ((-1, 1), (1, -2, -3)))
+    # print(np.linalg.norm(Ac - Acr ))
+
+    if errors:
+        return Al, Ar, ϵL, ϵR
+    return Al, Ar
 
 def largest_evec_left(E, l0 = None, eval=False):
     '''
@@ -250,12 +313,11 @@ if __name__=="__main__":
     print('Checking sum right...')
     sumRight(AR, H)
 
-    assert()
-
-
     energy = evaluateEnergy(AL, AR, C, H)
     print('Trying vumps...')
 
     _ , _, _, energies = gs_vumps(H, 2, 4, maxiter=500)
+    plt.figure()
     plt.plot(energies, 'x-')
+    plt.title('Energies')
     plt.show()
