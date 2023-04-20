@@ -64,20 +64,27 @@ def evaluateEnergy(AL, AR, C, h):
     '''
     h = h.reshape(2, 2, 2, 2)
 
-    AC_L = ncon([AL, C], ((-1, -2, 1), (1, -3)))
+    ACl = ncon([AL, C], ((-1, -2, 1), (1, -3)))
+    ACr = ncon([C, AR], ((-1, 1), (1, -2, -3)))
 
-    energy = ncon([AC_L, AC_L.conj(), h, AR, AR.conj()],
-                  ((1, 2, 4), (1, 3, 5), (3, 7, 2, 6), (4, 6, 8), (5, 7, 8)),
-                  (1, 2, 3, 4, 5, 6, 7, 8)) # Specify contraction order
+    energyL = ncon([AL, AL.conj(), h, ACl, ACl.conj()],
+                    ((1, 2, 3), (1, 4, 5), (4, 7, 2, 6), (3, 6, 8), (5, 7, 8)))
 
-    return energy
+    energyR = ncon([ACr, ACr.conj(), h, AR, AR.conj()],
+                    ((1, 2, 3), (1, 4, 5), (4, 7, 2, 6), (3, 6, 8), (5, 7, 8)))
+
+    energy = 0.5*(energyL + energyR)
+
+    return energy, energyL, energyR
 
 def gs_vumps(h, d, D, tol=1e-5, maxiter=100):
     '''
     Perform vumps to optimise local hamiltonian h.
     '''
+    from scipy.sparse.linalg import eigsh
     AL, AR, C = random_mixed_gauge(d, D)
     C = np.diag(C)
+    h0 = h.copy()
 
     δ = 1
     count = 0
@@ -86,52 +93,80 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100):
     error_ϵLs = []
     error_ϵRs = []
     while δ > tol and maxiter > count:
-        e = evaluateEnergy(AL, AR, C, h)
+        e, eL, eR = evaluateEnergy(AL, AR, C, h0)
         energies.append(e)
         print(f'Current energy : {e}')
 
         h_shifted = h - e*np.eye(d**2)
+        h_shiftedL = (h - eL*np.eye(d**2)).reshape(d, d, d, d)
+        h_shiftedR = (h - eR*np.eye(d**2)).reshape(d, d, d, d)
         h_shifted = h_shifted.reshape(d, d, d, d)
 
-        LH = sumLeft(AL, h_shifted)
-        RH = sumRight(AR, h_shifted)
+        print('Shifted energy left...')
+        ALc = ncon([AL, C], ((-1, -2, 1), (1, -3)))
+        energyL = ncon([AL, AL.conj(), h_shiftedL, ALc, ALc.conj()],
+                ((1, 2, 3), (1, 4, 5), (4, 7, 2, 6), (3, 6, 8), (5, 7, 8)))
+        print(energyL)
 
-        # Construct Ac′
-        AC = ncon([C, AR], ((-1, 1), (1, -2, -3)))
+        print('Shifted energy right...')
+        ARc = ncon([C, AR], ((-1, 1), (1, -2, -3)))
+        energyR = ncon([ARc, ARc.conj(), h_shiftedR, AR, AR.conj()],
+                ((1, 2, 3), (1, 4, 5), (4, 7, 2, 6), (3, 6, 8), (5, 7, 8)))
+        print(energyR)
+
+        print('Shifted energy centre...')
+        energyC = ncon([AL, C, AL.conj(), h.reshape(d, d, d, d), AR, C, AR.conj()],
+                ((1, 2, 3), (3, 6), (1, 4, 5), (4, 10, 2, 8), (6, 8, 9), (5, 7), (7, 10, 9)))
+        print(f'Before: {energyC}')
+        h_shiftedC = (h - energyC*np.eye(d**2)).reshape(d, d, d, d)
+        energyC = ncon([AL, C, AL.conj(), h_shiftedC, AR, C, AR.conj()],
+                ((1, 2, 3), (3, 6), (1, 4, 5), (4, 10, 2, 8), (6, 8, 9), (5, 7), (7, 10, 9)))
+        print(f'After: {energyC}')
+
+        LH = sumLeft(AL, h_shiftedL)
+        RH = sumRight(AR, h_shiftedR)
+
 
         # Create identity maps
         I = np.eye(D)
         Id = np.eye(d)
 
-        AC_map = ncon([AL, AL.conj(), h_shifted, I],
-                        ((1, 2, -1), (1, 3, -4), (3, -5, 2, -2), (-3, -6)))
-        AC_map += ncon([I, h_shifted, AR, AR.conj()],
-                         ((-1, -4), (-5, 3, -2, 1), (-3, 1, 2), (-6, 3, 2)))
-        AC_map += ncon([LH, Id, I], ((-1, -4), (-2, -5), (-3, -6)))
-        AC_map += ncon([I, Id, RH], ((-1, -4), (-2, -5), (-3, -6)))
-
-        AC_map_reshaped = AC_map.reshape(d*D**2, d*D**2)
-
-        _, v = eigs(AC_map_reshaped, k=1, which='LM', v0=AC.reshape(-1))
-
-        AC_prime = v[:, 0]
-        AC_prime = AC_prime.reshape(D, d, D)
-        # Not sure if this is strictly necessary
-        AC_prime =  normalise_A(AC_prime)
-
         # Construct C′
-        C_map = ncon([AL, AL.conj(), h_shifted, AR, AR.conj()],
+        C_map = ncon([AL, AL.conj(), h_shiftedC, AR, AR.conj()],
                        ((1, 2, -1), (1, 3, -3), (3, 6, 2, 4), (-2, 4, 5),
                            (-4, 6, 5)))
         C_map += ncon([LH, I], ((-1, -3), (-2, -4)))
         C_map += ncon([I, RH], ((-1, -3), (-2, -4)))
 
         C_map_reshaped = C_map.reshape(D**2, D**2)
-        _, v = eigs(C_map_reshaped, k=1, which='LM', v0=C.reshape(-1))
+        _, v = eigsh(C_map_reshaped, k=1, which='SA', v0=C.reshape(-1))
 
         C_prime = v[:, 0].reshape(D, D)
 
+        # Construct Ac′
+        AC_map = ncon([AL, AL.conj(), h_shiftedL, I],
+                        ((1, 2, -1), (1, 3, -4), (3, -5, 2, -2), (-3, -6)))
+        AC_map += ncon([I, h_shiftedR, AR, AR.conj()],
+                         ((-1, -4), (-5, 3, -2, 1), (-3, 1, 2), (-6, 3, 2)))
+        AC_map += ncon([LH, Id, I], ((-1, -4), (-2, -5), (-3, -6)))
+        AC_map += ncon([I, Id, RH], ((-1, -4), (-2, -5), (-3, -6)))
+
+        AC_map_reshaped = AC_map.reshape(d*D**2, d*D**2)
+
+        AC = ncon([C, AR], ((-1, 1), (1, -2, -3)))
+        _, v = eigsh(AC_map_reshaped, k=1, which='SA', v0=AC.reshape(-1))
+
+        AC_prime = v[:, 0]
+        AC_prime = AC_prime.reshape(D, d, D)
+        # Not sure if this is strictly necessary
+        AC_prime =  normalise_A(AC_prime)
+
         AL, AR, ϵL, ϵR = minAcC(AC_prime, C_prime, errors=True)
+
+        C_prime = v[:, 0].reshape(D, D)
+
+        C = C_prime.copy()
+        AC = AC_prime.copy()
 
         # Check convergence
         H_AC = ncon([AC_map, AC], ((1, 2, 3, -1, -2, -3), (1, 2, 3)))
@@ -141,7 +176,7 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100):
         δ =  np.linalg.norm(H_AC - AL_HC)
         count += 1 # iteratre counter for maxiter
 
-        e = evaluateEnergy(AL, AR, C, h) # Calculate the final energy
+        e, _, _ = evaluateEnergy(AL, AR, C, h) # Calculate the final energy
 
         energies.append(e)
         error_δs.append(δ)
