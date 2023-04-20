@@ -5,6 +5,8 @@ from ncon import ncon
 from numpy.linalg import qr
 from scipy.sparse.linalg import eigs
 from scipy.linalg import polar
+from scipy.sparse.linalg import bicgstab
+from numpy.linalg import solve
 
 import matplotlib.pyplot as plt
 from tqdm import tqdm
@@ -132,102 +134,31 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100):
     return AL, AR, C, energies
 
 def sumLeft(AL, h, tol=1e-8):
-    from scipy.sparse.linalg import bicgstab
-    from numpy.linalg import solve
     D, d, _ = AL.shape
     h = h.reshape(d, d, d, d)
 
     Hl = ncon((AL, AL, h, AL.conj(), AL.conj()),
             ((1, 2, 4), (1, 3, 5), (3, 7, 2, 6), (4, 6, -1), (5, 7, -2)))
 
-
     ELL = ncon([AL, AL.conj()], ((-1, 1, -3), (-2, 1, -4)))
     ELL = ELL.reshape(D*D, D*D)
     U, S, V = la.svd(ELL)
-
-    print('Singular values before...')
-    print(S)
-
-    print('Projecting out leading order...')
-    S[0] = 0
+    S[0] = 0 # Projecting out leading order term
     E_tilde = U @ np.diag(S) @ V
 
-    #e_left = largest_evec_left(ELL).reshape(D, D)
-    #e_right = largest_evec_right(ELL).reshape(D, D)
-
-    #P = ncon([e_right, e_left], ((-1, -2), (-3, -4))).reshape(D**2, D**2)
-    #Q = np.eye(D**2) - P # Not sure if this should wrap pseudo inverse
-
-    #E_tilde = (ELL - P) # remove leading order term
-    #E_tilde = Q@ELL
-    print('Singular Values after...')
-    _, S, _ = la.svd(E_tilde)
-    print(S)
+    # Setting up system of linear eq to solve for Lh
     E_psuedo = np.eye(D**2)  - E_tilde
-
-
-    E_pinv = la.inv(E_psuedo)
-
-    print('Verifying inverse...')
-    print(np.allclose(np.eye(D**2), E_pinv @ E_psuedo))
-
-    errors = []
-
-    E_tilde_curr = np.copy(E_tilde)
-    E_tilde_sum = np.eye(D**2)
-    n = 100
-    print('Verifying that repetition approaches pseudo inverse...')
-    for i in tqdm(range(n), total=n):
-        # E_tilde_curr = ncon([E_tilde_curr, E_tilde], ((-1, 1), (1, -2)))
-        E_tilde_sum = E_tilde_sum + E_tilde_curr
-        E_tilde_curr = E_tilde @ E_tilde_curr
-
-        errors.append(la.norm(E_pinv - E_tilde_sum))
-
-        # print(f'Current error: {errors[-1]}')
-    plt.title('Error in E_tilde')
-    plt.plot(errors)
-
     E_psuedoL = E_psuedo.conj().T
-
     Hl_dag = Hl.reshape(-1).conj()
     # Suggested bicgstab in literature but solve works fast + more accurately for now
     # L, exitcode = bicgstab(E_psuedoL, Hl_dag, atol=1e-7)
     # print(exitcode)
     L = solve(E_psuedoL, Hl_dag)
-
-    mapL = E_psuedoL.dot(L)
-    print('Checking dot product...')
-    print(np.allclose(mapL, E_psuedoL @ L))
-
-    # print('Checking output of bicgstab...')
-    # print(np.allclose(mapL, Hl_dag, atol=1e-5))
-
-    print('Norm diff')
-    print(np.linalg.norm(mapL - Hl_dag))
-
     Lh = L.conj().reshape(D, D)
-    E_pseudo = E_psuedo.reshape(D, D, D, D)
-
-    map_Lh = ncon([E_pseudo, Lh], ((1, 2, -1, -2), (1, 2)))
-
-    print(np.allclose(map_Lh, Hl, atol=1e-5))
-    print(np.linalg.norm(map_Lh - Hl))
-
-    Hl_Einv = np.dot(Hl.reshape(-1),  E_pinv)
-    Hl_Einv = Hl_Einv.reshape(D, D)
-
-    print('Checking Lh == Hl.E_pinv')
-    print(np.linalg.norm(Hl_Einv - Lh))
-
-
-    plt.show()
-    assert()
 
     return Lh
 
 def sumRight(AR, h, tol=1e-8):
-    from numpy.linalg import solve
     D, d, _ = AR.shape
     h = h.reshape(d, d, d, d)
 
