@@ -185,31 +185,28 @@ def sumLeft(AL, h, tol=1e-8):
         errors.append(la.norm(E_pinv - E_tilde_sum))
 
         # print(f'Current error: {errors[-1]}')
+    plt.title('Error in E_tilde')
     plt.plot(errors)
-    plt.show()
-    assert()
-
-
 
     E_psuedoL = E_psuedo.conj().T
 
-    Hl_dag = Hl.reshape(-1).conj().T
+    Hl_dag = Hl.reshape(-1).conj()
     # Suggested bicgstab in literature but solve works fast + more accurately for now
     # L, exitcode = bicgstab(E_psuedoL, Hl_dag, atol=1e-7)
     # print(exitcode)
     L = solve(E_psuedoL, Hl_dag)
 
-    # mapL = E_psuedoL.dot(L)
-    # print('Checking dot product...')
-    # print(np.allclose(mapL, E_psuedoL @ L))
+    mapL = E_psuedoL.dot(L)
+    print('Checking dot product...')
+    print(np.allclose(mapL, E_psuedoL @ L))
 
     # print('Checking output of bicgstab...')
     # print(np.allclose(mapL, Hl_dag, atol=1e-5))
 
-    # print('Norm diff')
-    # print(np.linalg.norm(mapL - Hl_dag))
+    print('Norm diff')
+    print(np.linalg.norm(mapL - Hl_dag))
 
-    Lh = L.conj().transpose().reshape(D, D)
+    Lh = L.conj().reshape(D, D)
     E_pseudo = E_psuedo.reshape(D, D, D, D)
 
     map_Lh = ncon([E_pseudo, Lh], ((1, 2, -1, -2), (1, 2)))
@@ -217,18 +214,13 @@ def sumLeft(AL, h, tol=1e-8):
     print(np.allclose(map_Lh, Hl, atol=1e-5))
     print(np.linalg.norm(map_Lh - Hl))
 
-    assert()
+    Hl_Einv = np.dot(Hl.reshape(-1),  E_pinv)
+    Hl_Einv = Hl_Einv.reshape(D, D)
 
-    # Sequentially apply Es to HL to verify convergence to LH
-    errors = []
-    HLE_curr = np.copy(Hl)
-    Etilde = E_tilde.reshape(D, D, D, D)
-    for i in range(100):
-        HLE_curr = ncon([HLE_curr, Etilde], ((1, 2), (1, 2, -1, -2)))
-        errors.append(np.linalg.norm(HLE_curr - Lh))
+    print('Checking Lh == Hl.E_pinv')
+    print(np.linalg.norm(Hl_Einv - Lh))
 
-        print(f'Current error: {errors[-1]}')
-    plt.plot(errors)
+
     plt.show()
     assert()
 
