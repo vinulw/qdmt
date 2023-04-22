@@ -114,30 +114,14 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
         edges = ((1, 2), (1, 3), (2, 4, 6), (6, 8, 10), (5, 9, 4, 8), (3, 5, 7), (7, 9, 10))
         eR = ncon(tensors, edges)
 
+        # Calculate energy shift (Mixed)
+        eC = ncon([AL, C, AL.conj(), h0_ten, AR, C, AR.conj()],
+                ((1, 2, 3), (3, 6), (1, 4, 5), (4, 10, 2, 8), (6, 8, 9), (5, 7), (7, 10, 9)))
+
         h_shifted = (h - e*np.eye(d**2)).reshape(d, d, d, d)
         h_shiftedL = (h - eL*np.eye(d**2)).reshape(d, d, d, d)
         h_shiftedR = (h - eR*np.eye(d**2)).reshape(d, d, d, d)
-
-        print('Shifted energy left...')
-        ALc = ncon([AL, C], ((-1, -2, 1), (1, -3)))
-        energyL = ncon([AL, AL.conj(), h_shiftedL, ALc, ALc.conj()],
-                ((1, 2, 3), (1, 4, 5), (4, 7, 2, 6), (3, 6, 8), (5, 7, 8)))
-        print(energyL)
-
-        print('Shifted energy right...')
-        ARc = ncon([C, AR], ((-1, 1), (1, -2, -3)))
-        energyR = ncon([ARc, ARc.conj(), h_shiftedR, AR, AR.conj()],
-                ((1, 2, 3), (1, 4, 5), (4, 7, 2, 6), (3, 6, 8), (5, 7, 8)))
-        print(energyR)
-
-        print('Shifted energy centre...')
-        energyC = ncon([AL, C, AL.conj(), h.reshape(d, d, d, d), AR, C, AR.conj()],
-                ((1, 2, 3), (3, 6), (1, 4, 5), (4, 10, 2, 8), (6, 8, 9), (5, 7), (7, 10, 9)))
-        print(f'Before: {energyC}')
         h_shiftedC = (h - energyC*np.eye(d**2)).reshape(d, d, d, d)
-        energyC = ncon([AL, C, AL.conj(), h_shiftedC, AR, C, AR.conj()],
-                ((1, 2, 3), (3, 6), (1, 4, 5), (4, 10, 2, 8), (6, 8, 9), (5, 7), (7, 10, 9)))
-        print(f'After: {energyC}')
 
         LH = sumLeft(AL, h_shiftedL)
         RH = sumRight(AR, h_shiftedR)
