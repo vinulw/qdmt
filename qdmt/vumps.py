@@ -121,42 +121,43 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
         h_shifted = (h - e*np.eye(d**2)).reshape(d, d, d, d)
         h_shiftedL = (h - eL*np.eye(d**2)).reshape(d, d, d, d)
         h_shiftedR = (h - eR*np.eye(d**2)).reshape(d, d, d, d)
-        h_shiftedC = (h - energyC*np.eye(d**2)).reshape(d, d, d, d)
+        h_shiftedC = (h - eC*np.eye(d**2)).reshape(d, d, d, d)
 
         LH = sumLeft(AL, h_shiftedL)
+        LH = 0.5*(LH + LH.T)
         RH = sumRight(AR, h_shiftedR)
-
+        RH = 0.5*(RH + RH.T)
 
         # Create identity maps
         I = np.eye(D)
         Id = np.eye(d)
 
         # Construct C′
-        C_map = ncon([AL, AL.conj(), h_shiftedC, AR, AR.conj()],
-                       ((1, 2, -1), (1, 3, -3), (3, 6, 2, 4), (-2, 4, 5),
-                           (-4, 6, 5)))
-        C_map += ncon([LH, I], ((-1, -3), (-2, -4)))
-        C_map += ncon([I, RH], ((-1, -3), (-2, -4)))
+        C_map = ncon([AL, AL.conj(), h0_ten, AR, AR.conj()],
+                       ((1, 2, -3), (1, 3, -1), (3, 6, 2, 4), (-4, 4, 5),
+                           (-2, 6, 5))).reshape(D**2, D**2)
+        C_map = C_map + ncon([LH, I], ((-1, -3), (-2, -4))).reshape(D**2, D**2)
+        C_map = C_map + ncon([I, RH], ((-1, -3), (-2, -4))).reshape(D**2, D**2)
 
-        C_map_reshaped = C_map.reshape(D**2, D**2)
-        _, v = eigsh(C_map_reshaped, k=1, which='SA', v0=C.reshape(-1))
-
-        C_prime = v[:, 0].reshape(D, D)
+        #_, v = eigsh(C_map_reshaped, k=1, which='SA', v0=C.reshape(-1))
+        #C_prime = v[:, 0].reshape(D, D)
+        C_prime = eigsh(C_map, k=1, which='SA', v0=C.reshape(-1))[1]
+        C_prime = C_prime.reshape(D, D)
 
         # Construct Ac′
-        AC_map = ncon([AL, AL.conj(), h_shiftedL, I],
-                        ((1, 2, -1), (1, 3, -4), (3, -5, 2, -2), (-3, -6)))
-        AC_map += ncon([I, h_shiftedR, AR, AR.conj()],
-                         ((-1, -4), (-5, 3, -2, 1), (-3, 1, 2), (-6, 3, 2)))
-        AC_map += ncon([LH, Id, I], ((-1, -4), (-2, -5), (-3, -6)))
-        AC_map += ncon([I, Id, RH], ((-1, -4), (-2, -5), (-3, -6)))
-
-        AC_map_reshaped = AC_map.reshape(d*D**2, d*D**2)
+        dim = d*D**2
+        AC_map = ncon([AL, AL.conj(), h0_ten, I],
+                        ((1, 2, -1), (1, 3, -4), (3, -5, 2, -2), (-3, -6))).reshape(dim, dim)
+        AC_map += ncon([I, h0_ten, AR, AR.conj()],
+                         ((-1, -4), (-5, 3, -2, 1), (-3, 1, 2), (-6, 3, 2))).reshape(dim, dim)
+        AC_map += ncon([LH, Id, I], ((-1, -4), (-2, -5), (-3, -6))).reshape(dim, dim)
+        AC_map += ncon([I, Id, RH], ((-1, -4), (-2, -5), (-3, -6))).reshape(dim, dim)
 
         AC = ncon([C, AR], ((-1, 1), (1, -2, -3)))
-        _, v = eigsh(AC_map_reshaped, k=1, which='SA', v0=AC.reshape(-1))
+        #_, v = eigsh(AC_map_reshaped, k=1, which='SA', v0=AC.reshape(-1))
+        #AC_prime = v[:, 0]
+        AC_prime = eigsh(AC_map, k=1, which='SA', v0=AC.reshape(-1))[1]
 
-        AC_prime = v[:, 0]
         AC_prime = AC_prime.reshape(D, d, D)
         # Not sure if this is strictly necessary
         AC_prime =  normalise_A(AC_prime)
@@ -175,6 +176,8 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
         AC = AC_prime.copy()
 
         # Check convergence
+        AC_map = AC_map.reshape(D, d, D, D, d, D)
+        C_map = C_map.reshape(D, D, D, D)
         H_AC = ncon([AC_map, AC], ((1, 2, 3, -1, -2, -3), (1, 2, 3)))
         H_C = ncon([C_map, C], ((1, 2, -1, -2), (1, 2)))
         AL_HC = ncon([AL, H_C], ((-1, -2, 1), (1, -3)))
