@@ -14,6 +14,8 @@ from scipy.linalg import polar
 from typing import List, Optional
 import matplotlib.pyplot as plt
 
+from vumps import normalise_A, sumLeft, sumRight
+
 
 def doVUMPS(AL: np.ndarray,
             C: np.ndarray,
@@ -73,6 +75,8 @@ def doVUMPS(AL: np.ndarray,
 
   # Begin variational update iterations
   energies = []
+  epsilonLs = []
+  epsilonRs = []
   for p in range(num_iter):
     """ Evaluate the energy """
     tensors = [AL, AL, h0, AL.conj(), AL.conj()]
@@ -87,7 +91,7 @@ def doVUMPS(AL: np.ndarray,
     hR0 = ncon(tensors, connects, con_order)
     energyR = np.trace(np.diag(C**2) @ hR0)
 
-    energy = 0.25 * (energyL + energyR)
+    energy = 0.5 * (energyL + energyR)
     energies.append(energy)
     en_error = energy - en_exact
     print('iteration: %d of %d, dim: %d, energy: %4.4f, '
@@ -115,7 +119,13 @@ def doVUMPS(AL: np.ndarray,
     LeftOp = LinearOperator((m**2, m**2), matvec=LeftEdge, dtype=np.float64)
     HL_temp, is_conv = gmres(LeftOp, hL.flatten(), x0=HL.flatten(), tol=1e-10,
                              restart=None, maxiter=5, atol=None)
+
+
     HL_temp = HL_temp.reshape(m, m)
+
+#    HL_mine = sumLeft(AL, h)
+#    print(np.linalg.norm(HL_temp - HL_mine))
+#    HL_temp = HL_mine
     HL = 0.5 * (HL_temp + HL_temp.T)
 
     """ Contract the MPS from the right """
@@ -141,6 +151,11 @@ def doVUMPS(AL: np.ndarray,
     HR_temp, is_conv = gmres(RightOp, hR.flatten(), x0=HR.flatten(), tol=1e-10,
                              restart=None, maxiter=5, atol=None)
     HR_temp = HR_temp.reshape(m, m)
+
+    HR_mine = sumRight(AR.transpose(2, 1, 0), h)
+#    print('Comparing HR...')
+#    print(np.linalg.norm(HR_temp - HR_mine))
+#    HR_temp = HR_mine
     HR = 0.5 * (HR_temp + HR_temp.T)
 
     """ Update the MPS singular values """
@@ -148,7 +163,7 @@ def doVUMPS(AL: np.ndarray,
     def MidWeights(C_mat):
       m = AL.shape[2]
       C_mat = C_mat.reshape(m, m)
-      tensors = [AL, h, AL.conj(), AR, AR.conj(), C_mat]
+      tensors = [AL, h0, AL.conj(), AR, AR.conj(), C_mat]
       connects = [[3, 1, 8], [2, 7, 1, 5], [3, 2, -1], [6, 5, 4], [6, 7, -2],
                   [8, 4]]
       con_order = [4, 8, 1, 5, 6, 7, 3, 2]
@@ -158,6 +173,43 @@ def doVUMPS(AL: np.ndarray,
     WeightOp = LinearOperator((m**2, m**2), matvec=MidWeights, dtype=np.float64)
     C_temp = eigsh(WeightOp, k=1, which='SA', v0=np.diag(C).flatten(),
                    ncv=None, maxiter=None, tol=ev_tol)[1]
+
+    # Construct C′
+    I = np.eye(m, dtype=complex)
+    AR_temp = AR.transpose(2, 1, 0)
+    C_map = ncon([AL, AL.conj(), h, AR_temp, AR_temp.conj()],
+                   ((1, 2, -3), (1, 3, -1), (3, 6, 2, 4), (-4, 4, 5),
+                       (-2, 6, 5))).reshape(m**2, m**2)
+    C_map = C_map + ncon([HL, I], ((-1, -3), (-2, -4))).reshape(m**2, m**2)
+    C_map = C_map + ncon([I, HR], ((-1, -3), (-2, -4))).reshape(m**2, m**2)
+
+    def TempLinearOperator(C_mat):
+        I = np.eye(m, dtype=complex)
+        C_map = ncon([AL, AL.conj(), h0, AR_temp, AR_temp.conj()],
+                       ((1, 2, -3), (1, 3, -1), (3, 6, 2, 4), (-4, 4, 5),
+                           (-2, 6, 5))).reshape(m**2, m**2)
+        C_map = C_map + ncon([HL, I], ((-1, -3), (-2, -4))).reshape(m**2, m**2)
+        C_map = C_map + ncon([I, HR], ((-1, -3), (-2, -4))).reshape(m**2, m**2)
+        return (C_map @ C_mat.reshape(-1)).flatten()
+
+    CM_rand = np.random.rand(m, m)
+    # Compare Linear Operators
+    LO_mine = TempLinearOperator(CM_rand)
+    LO_tnet = MidWeights(CM_rand)
+
+    print('Verifying Linear Operators are close...')
+    print(np.allclose(LO_mine, LO_tnet))
+    print(np.linalg.norm(LO_mine - LO_tnet))
+
+    MyOp = LinearOperator((m**2, m**2), matvec=TempLinearOperator, dtype=np.float64)
+    C_prime = eigsh(MyOp, k=1, which='SA', v0=np.diag(C).flatten(),
+                   ncv=None, maxiter=None, tol=ev_tol)[1]
+
+
+    print('Checking C is close...')
+    print(np.linalg.norm(C_prime - C_temp))
+
+    C_temp = C_prime
 
     # Change to diagonal gauge
     ut, C, vt = LA.svd(C_temp.reshape(m, m))
@@ -188,10 +240,45 @@ def doVUMPS(AL: np.ndarray,
               (AC.reshape(m * d, m) @ HR).flatten() +
               (AC.reshape(m, d * m) @ hR_mid.reshape(d * m, d * m)).flatten())
 
+    Id = np.eye(d)
+    dim = d*m**2
+    AR_temp = AR.transpose(2, 1, 0)
+    def MyAcMap(AC):
+
+        AC_map = ncon([AL, AL.conj(), h0, I],
+                        ((1, 2, -1), (1, 3, -4), (3, -5, 2, -2), (-3, -6))).reshape(dim, dim)
+        AC_map += ncon([I, h0, AR_temp, AR_temp.conj()],
+                         ((-1, -4), (-5, 3, -2, 1), (-3, 1, 2), (-6, 3, 2))).reshape(dim, dim)
+        AC_map += ncon([HL, Id, I], ((-1, -4), (-2, -5), (-3, -6))).reshape(dim, dim)
+        AC_map += ncon([I, Id, HR], ((-1, -4), (-2, -5), (-3, -6))).reshape(dim, dim)
+
+        return AC_map @ AC.reshape(-1)
+
     TensorOp = LinearOperator((d * m**2, d * m**2),
                               matvec=MidTensor, dtype=np.float64)
-    AC = (eigsh(TensorOp, k=1, which='SA', v0=AC.flatten(),
+
+
+    print('Veryfying AC Map is the same...')
+    AC_tnet = MidTensor(AC.flatten())
+
+    AC_mine = MyAcMap(AC.flatten())
+
+    print(np.allclose(AC_tnet, AC_mine))
+    print(np.linalg.norm(AC_tnet - AC_mine))
+
+    AC_start = np.copy(AC)
+    AC = (eigsh(TensorOp, k=1, which='SA', v0=AC_start.flatten(),
                 ncv=None, maxiter=None, tol=ev_tol)[1]).reshape(m, d, m)
+
+    MyOp = LinearOperator((d * m**2, d * m**2), matvec=MyAcMap, dtype=np.float64)
+    AC_mine = (eigsh(MyOp, k=1, which='SA', v0=AC_start.flatten(),
+                ncv=None, maxiter=None, tol=ev_tol)[1]).reshape(m, d, m)
+
+    print('Checking if produced AC is close...')
+    print(np.allclose(AC, AC_mine))
+    print(np.linalg.norm(AC - AC_mine))
+
+    AC = AC_mine
 
     if update_mode == 'polar':
       AL = (polar(AC.reshape(m * d, m))[0]).reshape(m, d, m)
@@ -202,7 +289,27 @@ def doVUMPS(AL: np.ndarray,
       AL = (ut @ vt).reshape(m, d, m)
       ut, _, vt = LA.svd(np.diag(C) @ AC.reshape(m, d * m), full_matrices=False)
       AR = (ut @ vt).reshape(m, d, m).transpose(2, 1, 0)
+
+    ALC = ncon([AL, np.diag(C)], ((-1, -2, 1), (1, -3)))
+    ϵL = np.linalg.norm(ALC - AC)
+    CAR = ncon([AR, np.diag(C)], ((-1, -2, 1), (1, -3)))
+    ϵR = np.linalg.norm(CAR - AC)
+    epsilonLs.append(ϵL)
+    epsilonRs.append(ϵR)
+
+    AL = normalise_A(AL)
+    AR = normalise_A(AR)
+    AC = normalise_A(AC)
   plt.plot(energies)
+  plt.title('energies')
+
+  plt.figure()
+  plt.plot(epsilonLs)
+  plt.title('ϵL')
+
+  plt.figure()
+  plt.plot(epsilonRs)
+  plt.title('ϵR')
   plt.show()
 
   return AL, C, AR, HL, HR
