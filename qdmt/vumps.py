@@ -77,7 +77,7 @@ def evaluateEnergy(AL, AR, C, h):
 
     return energy, energyL, energyR
 
-def gs_vumps(h, d, D, tol=1e-5, maxiter=100):
+def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
     '''
     Perform vumps to optimise local hamiltonian h.
     '''
@@ -92,6 +92,12 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100):
     error_δs = []
     error_ϵLs = []
     error_ϵRs = []
+
+    if strategy == 'svd':
+        minAcC = minAcC_svd
+    else:
+        minAcC = minAcC_polar
+
     while δ > tol and maxiter > count:
         e, eL, eR = evaluateEnergy(AL, AR, C, h0)
         energies.append(e)
@@ -256,7 +262,35 @@ def sumRight(AR, h, tol=1e-8):
 
     return Rh
 
-def minAcC(Ac, C, errors=False):
+def minAcC_svd(Ac, C, errors=False):
+    print('Using svd strategy...')
+    AcC = ncon([Ac, C.conj().T], ((-1, -2, 1), (1, -3))).reshape(d*D, D)
+    Ul, _, Vl = la.svd(AcC, full_matrices=False)
+    AL =  (Ul @ Vl).reshape(D, d, D)
+
+    CAc = ncon([C.conj().T, Ac], ((-1, 1), (1, -2, -3))).reshape(D, d*D)
+    Ur, _, Vr = la.svd(CAc, full_matrices=False)
+    AR = (Ur @ Vr).reshape(D, d, D)
+
+    print('Verigying Al canonical...')
+    ALAL = ncon([AL, AL.conj()], ((1, 2, -1), (1, 2, -2)))
+    print(np.allclose(ALAL, np.eye(D)))
+
+    print('Verigying Ar canonical...')
+    ARAR = ncon([AR, AR.conj()], ((-1, 1, 2), (-2, 1, 2)))
+    print(np.allclose(ARAR, np.eye(D)))
+
+    AlC = ncon([AL, C], ((-1, -2, 1), (1, -3)))
+    ϵL = np.linalg.norm(AlC - Ac) # Error in Al, should converge near optima
+
+    CAr = ncon([C, AR], ((-1, 1), (1, -2, -3)))
+    ϵR = np.linalg.norm(CAr - Ac) # Error in Ar should converge near optima
+
+    if errors:
+        return AL, AR, ϵL, ϵR
+    return AL, AR
+
+def minAcC_polar(Ac, C, errors=False):
     Ul_Ac, _ = polar(Ac.reshape(D*d, D), side='left')
     Ul_C, _ = polar(C, side='left')
 
@@ -357,7 +391,7 @@ if __name__=="__main__":
     energy = evaluateEnergy(AL, AR, C, H)
     print('Trying vumps...')
 
-    _ , _, _, energies = gs_vumps(H, 2, 4, maxiter=500)
+    _ , _, _, energies = gs_vumps(H, 2, 4, maxiter=100, strategy='svd')
     plt.figure()
     plt.plot(energies, 'x-')
     plt.title('Energies')
