@@ -82,7 +82,20 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
     Perform vumps to optimise local hamiltonian h.
     '''
     from scipy.sparse.linalg import eigsh
-    AL, AR, C = random_mixed_gauge(d, D)
+    # AL, AR, C = random_mixed_gauge(d, D, normalise=True)
+    C = np.random.rand(D)
+    C = C / la.norm(C)
+    AL = (la.svd(np.random.rand(D* d, D), full_matrices=False)[0]).reshape(D, d, D)
+    AL = normalise_A(AL)
+    AR = (la.svd(np.random.rand(D* d, D), full_matrices=False)[0]).reshape(D, d, D).transpose(2, 1, 0)
+    AR = normalise_A(AR)
+    print('Checking gauge condition...')
+    I = np.eye(D)
+    ALAL = ncon([AL, AL], ((1, 2, -1), (1, 2, -2)))
+    print(np.allclose(I, ALAL))
+    ARAR = ncon([AR, AR], ((-1, 1, 2), (-2, 1, 2)))
+    print(np.allclose(I, ARAR))
+    breakpoint()
     C = np.diag(C)
     h0 = h.copy()
     h0_ten = h0.reshape(2, 2, 2, 2)
@@ -133,7 +146,7 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
         Id = np.eye(d)
 
         # Construct C′
-        C_map = ncon([AL, AL.conj(), h0_ten, AR, AR.conj()],
+        C_map = ncon([AL, AL.conj(), h_shiftedC, AR, AR.conj()],
                        ((1, 2, -3), (1, 3, -1), (3, 6, 2, 4), (-4, 4, 5),
                            (-2, 6, 5))).reshape(D**2, D**2)
         C_map = C_map + ncon([LH, I], ((-1, -3), (-2, -4))).reshape(D**2, D**2)
@@ -143,6 +156,16 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
         #C_prime = v[:, 0].reshape(D, D)
         C_prime = eigsh(C_map, k=1, which='SA', v0=C.reshape(-1))[1]
         C_prime = C_prime.reshape(D, D)
+
+
+        # Convert to diagonal gauge for stability
+        ut, C_prime, vt = la.svd(C_prime)
+        C_prime = np.diag(C_prime)
+        AL = ncon([ut.conj().T, AL, ut], [[-1, 1], [1, -2, 2], [2, -3]])
+        AR = ncon([vt, AR, vt.conj().T], [[-1, 1], [1, -2, 2], [2, -3]])
+
+        LH = ut.conj().T @ LH @ ut
+        RH = vt @ RH @ vt.conj().T
 
         # Construct Ac′
         dim = d*D**2
@@ -162,15 +185,25 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
         # Not sure if this is strictly necessary
         AC_prime =  normalise_A(AC_prime)
 
-        AL, AR, ϵL, ϵR = minAcC(AC_prime, C_prime, errors=True)
+        #AL, AR, ϵL, ϵR = minAcC(AC_prime, C_prime, errors=True)
 
-        # Change to diagonal gauge
-        # TODO : Check if this is actually working correctly.
-        # U, C_prime, V = la.svd(C_prime)
-        # C_prime = np.diag(C_prime)
-        # AL = ncon([U.conj().T, AL, U], ((-1, 1), (1, -2, 2), (2, -3)))
-        # AR = ncon([V, AR, V.conj().T], ((-1, 1), (1, -2, 2), (2, -3)))
-        # AC_prime = ncon([U.conj().T, AC_prime, U], ((-1, 1), (1, -2, 2), (2, -3)))
+        m = D
+        if strategy == 'polar':
+          AL = (polar(AC_prime.reshape(m * d, m))[0]).reshape(m, d, m)
+          AR = (polar(AC_prime.reshape(m, d * m), side='left')[0]
+                ).reshape(m, d, m)
+        elif strategy == 'svd':
+          ut, _, vt = la.svd(AC.reshape(m * d, m) @ C_prime, full_matrices=False)
+          AL = (ut @ vt).reshape(m, d, m)
+          ut, _, vt = la.svd(C_prime @ AC.reshape(m, d * m), full_matrices=False)
+          AR = (ut @ vt).reshape(m, d, m)
+
+        AL = normalise_A(AL)
+        AR = normalise_A(AR)
+        ALC = ncon([AL, C_prime], ((-1, -2, 1), (1, -3)))
+        ϵL = np.linalg.norm(ALC - AC)
+        CAR = ncon([C_prime, AR], ((-1, 1), (1, -2,  -3)))
+        ϵR = np.linalg.norm(CAR - AC)
 
         C = C_prime.copy()
         AC = AC_prime.copy()
@@ -388,7 +421,7 @@ if __name__=="__main__":
     energy = evaluateEnergy(AL, AR, C, H)
     print('Trying vumps...')
 
-    _ , _, _, energies = gs_vumps(H, 2, 4, maxiter=100, strategy='svd')
+    _ , _, _, energies = gs_vumps(H, 2, 4, maxiter=100, strategy='polar')
     plt.figure()
     plt.plot(energies, 'x-')
     plt.title('Energies')
