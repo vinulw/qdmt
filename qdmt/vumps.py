@@ -85,6 +85,7 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
     AL, AR, C = random_mixed_gauge(d, D)
     C = np.diag(C)
     h0 = h.copy()
+    h0_ten = h0.reshape(2, 2, 2, 2)
 
     δ = 1
     count = 0
@@ -99,14 +100,23 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
         minAcC = minAcC_polar
 
     while δ > tol and maxiter > count:
-        e, eL, eR = evaluateEnergy(AL, AR, C, h0)
+        e, _, _ = evaluateEnergy(AL, AR, C, h0)
         energies.append(e)
         print(f'Current energy : {e}')
 
-        h_shifted = h - e*np.eye(d**2)
+        # Calculate the energy shifts (Left)
+        tensors = [AL, AL, h0_ten, AL.conj(), AL.conj(), C, C.conj()]
+        edges = ((1, 2, 4), (4, 6, 8), (3, 7, 2, 6), (1, 3, 5), (5, 7, 9), (8, 10), (9, 10))
+        eL = ncon(tensors, edges)
+
+        # Calculate energy shift (Right)
+        tensors = [C, C.conj(), AR, AR, h0_ten, AR.conj(), AR.conj()]
+        edges = ((1, 2), (1, 3), (2, 4, 6), (6, 8, 10), (5, 9, 4, 8), (3, 5, 7), (7, 9, 10))
+        eR = ncon(tensors, edges)
+
+        h_shifted = (h - e*np.eye(d**2)).reshape(d, d, d, d)
         h_shiftedL = (h - eL*np.eye(d**2)).reshape(d, d, d, d)
         h_shiftedR = (h - eR*np.eye(d**2)).reshape(d, d, d, d)
-        h_shifted = h_shifted.reshape(d, d, d, d)
 
         print('Shifted energy left...')
         ALc = ncon([AL, C], ((-1, -2, 1), (1, -3)))
