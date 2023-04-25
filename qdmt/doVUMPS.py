@@ -73,6 +73,10 @@ def doVUMPS(AL: np.ndarray,
       HR = TensorExpand(HR, [m, m])
   AC = ncon([AL, np.diag(C)], [[-1, -2, 1], [1, -3]])
 
+  AL = normalise_A(AL)
+  AR = normalise_A(AR)
+  AC = normalise_A(AC)
+
   # Begin variational update iterations
   energies = []
   epsilonLs = []
@@ -107,25 +111,25 @@ def doVUMPS(AL: np.ndarray,
     en_density = np.dot(np.diag(hL), C**2)
     hL -= en_density * np.eye(m)
     h -= en_density * np.eye(d**2).reshape(d, d, d, d)
-    HL -= np.dot(np.diag(HL), C**2) * np.eye(m)
+    # HL -= np.dot(np.diag(HL), C**2) * np.eye(m)
 
     # Solve left edge Hamiltonian eigenvector
-    def LeftEdge(HL):
-      m = AL.shape[0]
-      d = AL.shape[1]
-      HL_T = AL.reshape(m * d, m).T @ (HL.reshape(m, m) @ AL.reshape(m, d * m)
-                                       ).reshape(m * d, m)
-      return HL.flatten() - HL_T.flatten()
-    LeftOp = LinearOperator((m**2, m**2), matvec=LeftEdge, dtype=np.float64)
-    HL_temp, is_conv = gmres(LeftOp, hL.flatten(), x0=HL.flatten(), tol=1e-10,
-                             restart=None, maxiter=5, atol=None)
+    #def LeftEdge(HL):
+    #  m = AL.shape[0]
+    #  d = AL.shape[1]
+    #  HL_T = AL.reshape(m * d, m).T @ (HL.reshape(m, m) @ AL.reshape(m, d * m)
+    #                                   ).reshape(m * d, m)
+    #  return HL.flatten() - HL_T.flatten()
+    # LeftOp = LinearOperator((m**2, m**2), matvec=LeftEdge, dtype=np.float64)
+    # HL_temp, is_conv = gmres(LeftOp, hL.flatten(), x0=HL.flatten(), tol=1e-10,
+    #                          restart=None, maxiter=5, atol=None)
 
 
-    HL_temp = HL_temp.reshape(m, m)
+    # HL_temp = HL_temp.reshape(m, m)
 
-#    HL_mine = sumLeft(AL, h)
-#    print(np.linalg.norm(HL_temp - HL_mine))
-#    HL_temp = HL_mine
+    HL_mine = sumLeft(AL, h)
+    # print(np.linalg.norm(HL_temp - HL_mine))
+    HL_temp = HL_mine
     HL = 0.5 * (HL_temp + HL_temp.T)
 
     """ Contract the MPS from the right """
@@ -138,24 +142,24 @@ def doVUMPS(AL: np.ndarray,
 
     hR -= en_density * np.eye(m)
     h -= np.dot(np.diag(hR), C**2) * np.eye(d**2).reshape(d, d, d, d)
-    HR -= np.dot(np.diag(HR), C**2) * np.eye(m)
+    # HR -= np.dot(np.diag(HR), C**2) * np.eye(m)
 
-    # Solve right edge Hamiltonian eigenvector
-    def RightEdge(HR):
-      m = AR.shape[0]
-      d = AR.shape[1]
-      HR_T = AR.reshape(m * d, m).T @ (HR.reshape(m, m) @ AR.reshape(m, d * m)
-                                       ).reshape(m * d, m)
-      return HR.flatten() - HR_T.flatten()
-    RightOp = LinearOperator((m**2, m**2), matvec=RightEdge, dtype=np.float64)
-    HR_temp, is_conv = gmres(RightOp, hR.flatten(), x0=HR.flatten(), tol=1e-10,
-                             restart=None, maxiter=5, atol=None)
-    HR_temp = HR_temp.reshape(m, m)
+    # # Solve right edge Hamiltonian eigenvector
+    # def RightEdge(HR):
+    #   m = AR.shape[0]
+    #   d = AR.shape[1]
+    #   HR_T = AR.reshape(m * d, m).T @ (HR.reshape(m, m) @ AR.reshape(m, d * m)
+    #                                    ).reshape(m * d, m)
+    #   return HR.flatten() - HR_T.flatten()
+    # RightOp = LinearOperator((m**2, m**2), matvec=RightEdge, dtype=np.float64)
+    # HR_temp, is_conv = gmres(RightOp, hR.flatten(), x0=HR.flatten(), tol=1e-10,
+    #                          restart=None, maxiter=5, atol=None)
+    # HR_temp = HR_temp.reshape(m, m)
 
     HR_mine = sumRight(AR.transpose(2, 1, 0), h)
 #    print('Comparing HR...')
 #    print(np.linalg.norm(HR_temp - HR_mine))
-#    HR_temp = HR_mine
+    HR_temp = HR_mine
     HR = 0.5 * (HR_temp + HR_temp.T)
 
     """ Update the MPS singular values """
