@@ -5,7 +5,7 @@ from ncon import ncon
 from numpy.linalg import qr
 from scipy.sparse.linalg import eigs
 from scipy.linalg import polar
-from scipy.sparse.linalg import bicgstab
+from scipy.sparse.linalg import bicgstab, LinearOperator
 from numpy.linalg import solve
 
 import matplotlib.pyplot as plt
@@ -82,6 +82,8 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
     Perform vumps to optimise local hamiltonian h.
     '''
     from scipy.sparse.linalg import eigsh
+
+    ev_tol = 1e-12 # Should be an optional
     # AL, AR, C = random_mixed_gauge(d, D, normalise=True)
     C = np.random.rand(D)
     C = C / la.norm(C)
@@ -95,8 +97,8 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
     print(np.allclose(I, ALAL))
     ARAR = ncon([AR, AR], ((-1, 1, 2), (-2, 1, 2)))
     print(np.allclose(I, ARAR))
-    breakpoint()
     C = np.diag(C)
+    AC = ncon([AL, C], [[-1, -2, 1], [1, -3]])
     h0 = h.copy()
     h0_ten = h0.reshape(2, 2, 2, 2)
 
@@ -137,8 +139,10 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
         h_shiftedC = (h - eC*np.eye(d**2)).reshape(d, d, d, d)
 
         LH = sumLeft(AL, h_shiftedL)
-        LH = 0.5*(LH + LH.T)
         RH = sumRight(AR, h_shiftedR)
+
+        # Make them symmetric (should not be necessary)
+        LH = 0.5*(LH + LH.T)
         RH = 0.5*(RH + RH.T)
 
         # Create identity maps
@@ -154,7 +158,7 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
 
         #_, v = eigsh(C_map_reshaped, k=1, which='SA', v0=C.reshape(-1))
         #C_prime = v[:, 0].reshape(D, D)
-        C_prime = eigsh(C_map, k=1, which='SA', v0=C.reshape(-1))[1]
+        C_prime = eigsh(C_map, k=1, which='SA', v0=C.reshape(-1), ncv=None, maxiter=None, tol=ev_tol)[1]
         C_prime = C_prime.reshape(D, D)
 
 
@@ -169,21 +173,20 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
 
         # Construct Ac′
         dim = d*D**2
-        AC_map = ncon([AL, AL.conj(), h0_ten, I],
-                        ((1, 2, -1), (1, 3, -4), (3, -5, 2, -2), (-3, -6))).reshape(dim, dim)
-        AC_map += ncon([I, h0_ten, AR, AR.conj()],
-                         ((-1, -4), (-5, 3, -2, 1), (-3, 1, 2), (-6, 3, 2))).reshape(dim, dim)
-        AC_map += ncon([LH, Id, I], ((-1, -4), (-2, -5), (-3, -6))).reshape(dim, dim)
-        AC_map += ncon([I, Id, RH], ((-1, -4), (-2, -5), (-3, -6))).reshape(dim, dim)
 
-        AC = ncon([C, AR], ((-1, 1), (1, -2, -3)))
-        #_, v = eigsh(AC_map_reshaped, k=1, which='SA', v0=AC.reshape(-1))
-        #AC_prime = v[:, 0]
-        AC_prime = eigsh(AC_map, k=1, which='SA', v0=AC.reshape(-1))[1]
+        def AcMapOp(AC):
+            AC_map = ncon([AL, AL.conj(), h0_ten, I],
+                            ((1, 2, -1), (1, 3, -4), (3, -5, 2, -2), (-3, -6))).reshape(dim, dim)
+            AC_map += ncon([I, h0_ten, AR, AR.conj()],
+                             ((-1, -4), (-5, 3, -2, 1), (-3, 1, 2), (-6, 3, 2))).reshape(dim, dim)
+            AC_map += ncon([LH, Id, I], ((-1, -4), (-2, -5), (-3, -6))).reshape(dim, dim)
+            AC_map += ncon([I, Id, RH], ((-1, -4), (-2, -5), (-3, -6))).reshape(dim, dim)
 
-        AC_prime = AC_prime.reshape(D, d, D)
-        # Not sure if this is strictly necessary
-        AC_prime =  normalise_A(AC_prime)
+            return AC_map @ AC.reshape(-1)
+
+        AC_Op = LinearOperator((d * D**2, d * D**2), matvec=AcMapOp, dtype=np.float64)
+        AC_prime = (eigsh(AC_Op, k=1, which='SA', v0=AC.flatten(),
+                ncv=None, maxiter=None, tol=ev_tol)[1]).reshape(D, d, D)
 
         #AL, AR, ϵL, ϵR = minAcC(AC_prime, C_prime, errors=True)
 
@@ -198,8 +201,6 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
           ut, _, vt = la.svd(C_prime @ AC.reshape(m, d * m), full_matrices=False)
           AR = (ut @ vt).reshape(m, d, m)
 
-        AL = normalise_A(AL)
-        AR = normalise_A(AR)
         ALC = ncon([AL, C_prime], ((-1, -2, 1), (1, -3)))
         ϵL = np.linalg.norm(ALC - AC)
         CAR = ncon([C_prime, AR], ((-1, 1), (1, -2,  -3)))
@@ -208,19 +209,17 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
         C = C_prime.copy()
         AC = AC_prime.copy()
 
-        # Check convergence
-        AC_map = AC_map.reshape(D, d, D, D, d, D)
-        C_map = C_map.reshape(D, D, D, D)
-        H_AC = ncon([AC_map, AC], ((1, 2, 3, -1, -2, -3), (1, 2, 3)))
-        H_C = ncon([C_map, C], ((1, 2, -1, -2), (1, 2)))
-        AL_HC = ncon([AL, H_C], ((-1, -2, 1), (1, -3)))
 
-        δ =  np.linalg.norm(H_AC - AL_HC)
+        # Check convergence
+        # AC_map = AC_map.reshape(D, d, D, D, d, D)
+        # C_map = C_map.reshape(D, D, D, D)
+        # H_AC = ncon([AC_map, AC], ((1, 2, 3, -1, -2, -3), (1, 2, 3)))
+        # H_C = ncon([C_map, C], ((1, 2, -1, -2), (1, 2)))
+        # AL_HC = ncon([AL, H_C], ((-1, -2, 1), (1, -3)))
+
+        δ = 1 # np.linalg.norm(H_AC - AL_HC)
         count += 1 # iteratre counter for maxiter
 
-        e, _, _ = evaluateEnergy(AL, AR, C, h) # Calculate the final energy
-
-        energies.append(e)
         error_δs.append(δ)
         error_ϵLs.append(ϵL)
         error_ϵRs.append(ϵR)
@@ -230,6 +229,13 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
         print(f'   δ: {δ}')
         print(f'   ϵL: {ϵL}')
         print(f'   ϵR: {ϵR}')
+
+        # Normalise tensors before energy calculations
+        AL = normalise_A(AL)
+        AR = normalise_A(AR)
+        AC = normalise_A(AC)
+        e, _, _ = evaluateEnergy(AL, AR, C, h) # Calculate the final energy
+        energies.append(e)
 
     plt.figure()
     plt.plot(error_δs)
@@ -423,6 +429,6 @@ if __name__=="__main__":
 
     _ , _, _, energies = gs_vumps(H, 2, 4, maxiter=100, strategy='polar')
     plt.figure()
-    plt.plot(energies, 'x-')
+    plt.plot(energies, '--')
     plt.title('Energies')
     plt.show()
