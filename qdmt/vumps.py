@@ -149,20 +149,21 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
         I = np.eye(D)
         Id = np.eye(d)
 
-        # Construct C′
-        C_map = ncon([AL, AL.conj(), h_shiftedC, AR, AR.conj()],
-                       ((1, 2, -3), (1, 3, -1), (3, 6, 2, 4), (-4, 4, 5),
-                           (-2, 6, 5))).reshape(D**2, D**2)
-        C_map = C_map + ncon([LH, I], ((-1, -3), (-2, -4))).reshape(D**2, D**2)
-        C_map = C_map + ncon([I, RH], ((-1, -3), (-2, -4))).reshape(D**2, D**2)
+        def CMapOp(C_mat):
+            I = np.eye(D, dtype=complex)
+            C_map = ncon([AL, AL.conj(), h0_ten, AR, AR.conj()],
+                           ((1, 2, -3), (1, 3, -1), (3, 6, 2, 4), (-4, 4, 5),
+                               (-2, 6, 5))).reshape(D**2, D**2)
+            C_map = C_map + ncon([LH, I], ((-1, -3), (-2, -4))).reshape(D**2, D**2)
+            C_map = C_map + ncon([I, RH], ((-1, -3), (-2, -4))).reshape(D**2, D**2)
+            return (C_map @ C_mat.reshape(-1)).flatten()
 
-        #_, v = eigsh(C_map_reshaped, k=1, which='SA', v0=C.reshape(-1))
-        #C_prime = v[:, 0].reshape(D, D)
-        C_prime = eigsh(C_map, k=1, which='SA', v0=C.reshape(-1), ncv=None, maxiter=None, tol=ev_tol)[1]
-        C_prime = C_prime.reshape(D, D)
-
+        COp = LinearOperator((D**2, D**2), matvec=CMapOp, dtype=np.float64)
+        C_prime = eigsh(COp, k=1, which='SA', v0=C.flatten(),
+                       ncv=None, maxiter=None, tol=ev_tol)[1]
 
         # Convert to diagonal gauge for stability
+        C_prime = C_prime.reshape(D, D)
         ut, C_prime, vt = la.svd(C_prime)
         C_prime = np.diag(C_prime)
         AL = ncon([ut.conj().T, AL, ut], [[-1, 1], [1, -2, 2], [2, -3]])
