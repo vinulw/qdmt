@@ -55,27 +55,79 @@ def normalise_A(A):
 
     return A / np.sqrt(S[0])
 
-def evaluateEnergy(AL, AR, C, h):
+def evaluateEnergy(AL, AR, C, h, debug=False):
     '''
     Evaluate the expectation for energy <h> for a uMPS state in mixed canonical
     form. Assume that h is a two site operator for now.
 
     TODO: Extend this to an n-site operator
     '''
-    h = h.reshape(2, 2, 2, 2)
+    n_sites = h.shape[0]
+    n_sites = int(np.log2(n_sites))
+    h = h.reshape(*[2]*(n_sites*2))
+
 
     ACl = ncon([AL, C], ((-1, -2, 1), (1, -3)))
     ACr = ncon([C, AR], ((-1, 1), (1, -2, -3)))
 
-    energyL = ncon([AL, AL.conj(), h, ACl, ACl.conj()],
-                    ((1, 2, 3), (1, 4, 5), (4, 7, 2, 6), (3, 6, 8), (5, 7, 8)))
+    curr_contr_top = n_sites*2+2
+    curr_contr_bot = n_sites*3+2
+    curr_contr = n_sites*2+1
+    curr_h_top = n_sites + 1
+    curr_h_bot = 1
+    contrAl = [(curr_contr, curr_h_top, curr_contr_top), ]
+    contrAl_dag = [(curr_contr, curr_h_bot, curr_contr_bot), ]
+    contr_h = tuple(range(1, n_sites*2+1))
+    curr_h_top += 1
+    curr_h_bot += 1
+    for _ in range(n_sites - 1):
+        contrAl.append((curr_contr_top, curr_h_top, curr_contr_top + 1))
+        curr_h_top += 1
+        curr_contr_top += 1
 
-    energyR = ncon([ACr, ACr.conj(), h, AR, AR.conj()],
-                    ((1, 2, 3), (1, 4, 5), (4, 7, 2, 6), (3, 6, 8), (5, 7, 8)))
+        contrAl_dag.append((curr_contr_bot, curr_h_bot, curr_contr_bot + 1))
+        curr_contr_bot += 1
+        curr_h_bot += 1
 
-    energy = 0.5*(energyL + energyR)
+    # Connect the last leg
+    finalAl = list(contrAl[-1])
+    finalAl[2] = contrAl_dag[-1][2]
+    contrAl[-1] = tuple(finalAl)
 
-    return energy, energyL, energyR
+    Als = [AL] * (n_sites - 1)
+    Als.append(ACl)
+
+    Ars = [ACr] + [AR] * (n_sites - 1)
+
+    Als_dag = [AL.conj()] * (n_sites - 1)
+    Als_dag.append(ACl.conj())
+
+    Ars_dag = [ACr.conj()] + [AR.conj()] * (n_sites - 1)
+
+    energyL_new = ncon([*Als, h, *Als_dag], (*contrAl, contr_h, *contrAl_dag))
+
+    energyR_new = ncon([*Ars, h, *Ars_dag], (*contrAl, contr_h, *contrAl_dag))
+
+    if n_sites == 2 and debug:
+        energyL = ncon([AL, AL.conj(), h, ACl, ACl.conj()],
+                        ((1, 2, 3), (1, 4, 5), (4, 7, 2, 6), (3, 6, 8), (5, 7, 8)))
+
+
+        energyR = ncon([ACr, ACr.conj(), h, AR, AR.conj()],
+                        ((1, 2, 3), (1, 4, 5), (4, 7, 2, 6), (3, 6, 8), (5, 7, 8)))
+
+
+        if debug:
+            print('Checking 2 site energy...')
+            print('   Left energy close....')
+            print('   ', np.allclose(energyL_new, energyL))
+
+            print('   Right energy close...')
+            print('   ', np.allclose(energyR_new, energyR))
+
+    energy = 0.5*(energyL_new + energyR_new) / n_sites # Density per site
+
+    return energy, energyL_new, energyR_new
 
 def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
     '''
@@ -418,14 +470,15 @@ if __name__=="__main__":
 
     H = Hamiltonian({'ZZ':-1, 'X':0.2}).to_matrix()
 
+    H2 = np.kron(H, H)
 
-    print('Checking sum Left...')
-    sumLeft(AL, H)
+    energy = evaluateEnergy(AL, AR, C, H, debug=True)
+    print(f'Single copy energy: {energy}')
 
-    print('Checking sum right...')
-    sumRight(AR, H)
+    energy = evaluateEnergy(AL, AR, C, H2)
+    print(f'Two copy energy: {energy}')
 
-    energy = evaluateEnergy(AL, AR, C, H)
+    assert()
     print('Trying vumps...')
 
     _ , _, _, energies = gs_vumps(H, 2, 4, maxiter=100, strategy='polar')
