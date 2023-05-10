@@ -217,6 +217,8 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
 
         LH = sumLeft(AL, h_shiftedL)
         RH = sumRight(AR, h_shiftedR)
+        print('Worked...')
+        assert()
 
         # Make them symmetric (should not be necessary)
         LH = 0.5*(LH + LH.T)
@@ -372,10 +374,27 @@ def sumLeft(AL, h, tol=1e-8):
 
 def sumRight(AR, h, tol=1e-8):
     D, d, _ = AR.shape
-    h = h.reshape(d, d, d, d)
+    m = len(h.shape) // 2
 
-    Hr = ncon((AR, AR.conj(), h, AR, AR.conj()),
-              ((-1, 1, 3), (-2, 2, 4), (2, 6, 1, 5), (3, 5, 7), (4, 6, 7)))
+    h0_edge = list(range(1, 2*m+1))
+    curr_i = 2*m+1
+    curr_i += 1
+    edges_A = [[curr_i, m+1, curr_i + 2]]
+    edges_A_dag = [[curr_i+1, 1, curr_i + 3]]
+    curr_i = curr_i + 2
+
+    for i in range(1, m):
+        edges_A.append([curr_i, m+1+i, curr_i+2])
+        edges_A_dag.append([curr_i+1, 1+1, curr_i+3])
+        curr_i += 2
+
+    edges_A_dag[-1][-1] = curr_i
+    edges_A[0][0] = -1
+    edges_A_dag[0][0] = -2
+
+    edges = edges_A + [h0_edge] + edges_A_dag
+    tensors = [*[AR]*m, h, *[AR.conj()]*m]
+    Hr = ncon(tensors, edges)
 
     # Set up transfer matrix
     ELL = ncon([AR, AR.conj()], ((-1, 1, -3), (-2, 1, -4)))
