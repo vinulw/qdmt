@@ -152,7 +152,13 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
     C = np.diag(C)
     AC = ncon([AL, C], [[-1, -2, 1], [1, -3]])
     h0 = h.copy()
-    h0_ten = h0.reshape(2, 2, 2, 2)
+
+    # Reshape the h (d**m, d**m ) -> (d, d, d, ..., d)
+    m = np.emath.logn(d, h0.shape[0])
+    assert np.mod(m, 1) == 0, "d does not match h shape"
+    h0_ten = h0.reshape(*[d] * 2*int(m))
+
+    assert()
 
     δ = 1
     count = 0
@@ -475,14 +481,16 @@ if __name__=="__main__":
     energy = evaluateEnergy(AL, AR, C, H, debug=True)
     print(f'Single copy energy: {energy}')
 
-    energy = evaluateEnergy(AL, AR, C, H2)
-    print(f'Two copy energy: {energy}')
+    energy2 = evaluateEnergy(AL, AR, C, H2)
+    print(f'Two copy energy: {energy2}')
 
-    assert()
     print('Trying vumps...')
 
     _ , _, _, energies = gs_vumps(H, 2, 4, maxiter=100, strategy='polar')
+    assert()
+    print(energies)
     plt.figure()
     plt.plot(energies, '--')
     plt.title('Energies')
     plt.show()
+
