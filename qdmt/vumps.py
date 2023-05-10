@@ -211,11 +211,9 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
         tensors = [C, C.conj(), *[AR]*m, h0_ten, *[AR.conj()]*m]
         eR = ncon(tensors, edges)
 
-        h_shifted = (h - e*np.eye(d**m)).reshape(d, d, d, d)
-        h_shiftedL = (h - eL*np.eye(d**m)).reshape(d, d, d, d)
-        h_shiftedR = (h - eR*np.eye(d**m)).reshape(d, d, d, d)
-
-        assert()
+        h_shifted = (h - e*np.eye(d**m)).reshape(*[d]*2*m)
+        h_shiftedL = (h - eL*np.eye(d**m)).reshape(*[d]*2*m)
+        h_shiftedR = (h - eR*np.eye(d**m)).reshape(*[d]*2*m)
 
         LH = sumLeft(AL, h_shiftedL)
         RH = sumRight(AR, h_shiftedR)
@@ -332,10 +330,26 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
 
 def sumLeft(AL, h, tol=1e-8):
     D, d, _ = AL.shape
-    h = h.reshape(d, d, d, d)
+    m = len(h.shape) // 2
 
-    Hl = ncon((AL, AL, h, AL.conj(), AL.conj()),
-            ((1, 2, 4), (1, 3, 5), (3, 7, 2, 6), (4, 6, -1), (5, 7, -2)))
+    h0_edge = list(range(1, 2*m+1))
+    curr_i = 2*m+1
+    edges_A = [[curr_i, m+1, curr_i + 1]]
+    edges_A_dag = [[curr_i, 1, curr_i + 2]]
+    curr_i = curr_i + 1
+
+    for i in range(1, m):
+        edges_A.append([curr_i, m+1+i, curr_i+2])
+        edges_A_dag.append([curr_i+1, 1+1, curr_i+3])
+        curr_i += 2
+
+    edges_A[-1][-1] = -1
+    edges_A_dag[-1][-1] = -2
+
+    edges = [*edges_A, h0_edge, *edges_A_dag]
+    tensors = [*[AL] * m, h, *[AL.conj()]*m]
+
+    Hl = ncon(tensors, edges)
 
     # Construct reduced transfer matrix
     ELL = ncon([AL, AL.conj()], ((-1, 1, -3), (-2, 1, -4)))
