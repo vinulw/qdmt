@@ -190,18 +190,32 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
 
         edges = [*edges_A, h0_edge, *edges_A_dag, [curr_i, curr_i+2], [curr_i+1, curr_i+2]]
         tensors = [*[AL] * m, h0_ten, *[AL.conj()]*m, C, C.conj()]
-        eL_alg = ncon(tensors, edges)
+        eL = ncon(tensors, edges)
 
-        assert()
+        # Calculate the energy shift right
+        curr_i = 2*m+1
+        edges = [[curr_i, curr_i+1], [curr_i, curr_i+2]]
+        curr_i += 1
+        edges_A = [[curr_i, m+1, curr_i + 2]]
+        edges_A_dag = [[curr_i+1, 1, curr_i + 3]]
+        curr_i = curr_i + 2
 
-        # Calculate energy shift (Right)
-        tensors = [C, C.conj(), AR, AR, h0_ten, AR.conj(), AR.conj()]
-        edges = ((1, 2), (1, 3), (2, 4, 6), (6, 8, 10), (5, 9, 4, 8), (3, 5, 7), (7, 9, 10))
+        for i in range(1, m):
+            edges_A.append([curr_i, m+1+i, curr_i+2])
+            edges_A_dag.append([curr_i+1, 1+1, curr_i+3])
+            curr_i += 2
+
+        edges_A_dag[-1][-1] = curr_i
+
+        edges = edges + edges_A + [h0_edge] + edges_A_dag
+        tensors = [C, C.conj(), *[AR]*m, h0_ten, *[AR.conj()]*m]
         eR = ncon(tensors, edges)
 
-        h_shifted = (h - e*np.eye(d**2)).reshape(d, d, d, d)
-        h_shiftedL = (h - eL*np.eye(d**2)).reshape(d, d, d, d)
-        h_shiftedR = (h - eR*np.eye(d**2)).reshape(d, d, d, d)
+        h_shifted = (h - e*np.eye(d**m)).reshape(d, d, d, d)
+        h_shiftedL = (h - eL*np.eye(d**m)).reshape(d, d, d, d)
+        h_shiftedR = (h - eR*np.eye(d**m)).reshape(d, d, d, d)
+
+        assert()
 
         LH = sumLeft(AL, h_shiftedL)
         RH = sumRight(AR, h_shiftedR)
