@@ -156,9 +156,8 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
     # Reshape the h (d**m, d**m ) -> (d, d, d, ..., d)
     m = np.emath.logn(d, h0.shape[0])
     assert np.mod(m, 1) == 0, "d does not match h shape"
-    h0_ten = h0.reshape(*[d] * 2*int(m))
-
-    assert()
+    m = int(m)
+    h0_ten = h0.reshape(*[d] * 2*m)
 
     δ = 1
     count = 0
@@ -178,23 +177,31 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
         print(f'Current energy : {e}')
 
         # Calculate the energy shifts (Left)
-        tensors = [AL, AL, h0_ten, AL.conj(), AL.conj(), C, C.conj()]
-        edges = ((1, 2, 4), (4, 6, 8), (3, 7, 2, 6), (1, 3, 5), (5, 7, 9), (8, 10), (9, 10))
-        eL = ncon(tensors, edges)
+        h0_edge = list(range(1, 2*m+1))
+        curr_i = 2*m+1
+        edges_A = [[curr_i, m+1, curr_i + 1]]
+        edges_A_dag = [[curr_i, 1, curr_i + 2]]
+        curr_i = curr_i + 1
+
+        for i in range(1, m):
+            edges_A.append([curr_i, m+1+i, curr_i+2])
+            edges_A_dag.append([curr_i+1, 1+1, curr_i+3])
+            curr_i += 2
+
+        edges = [*edges_A, h0_edge, *edges_A_dag, [curr_i, curr_i+2], [curr_i+1, curr_i+2]]
+        tensors = [*[AL] * m, h0_ten, *[AL.conj()]*m, C, C.conj()]
+        eL_alg = ncon(tensors, edges)
+
+        assert()
 
         # Calculate energy shift (Right)
         tensors = [C, C.conj(), AR, AR, h0_ten, AR.conj(), AR.conj()]
         edges = ((1, 2), (1, 3), (2, 4, 6), (6, 8, 10), (5, 9, 4, 8), (3, 5, 7), (7, 9, 10))
         eR = ncon(tensors, edges)
 
-        # Calculate energy shift (Mixed)
-        eC = ncon([AL, C, AL.conj(), h0_ten, AR, C, AR.conj()],
-                ((1, 2, 3), (3, 6), (1, 4, 5), (4, 10, 2, 8), (6, 8, 9), (5, 7), (7, 10, 9)))
-
         h_shifted = (h - e*np.eye(d**2)).reshape(d, d, d, d)
         h_shiftedL = (h - eL*np.eye(d**2)).reshape(d, d, d, d)
         h_shiftedR = (h - eR*np.eye(d**2)).reshape(d, d, d, d)
-        h_shiftedC = (h - eC*np.eye(d**2)).reshape(d, d, d, d)
 
         LH = sumLeft(AL, h_shiftedL)
         RH = sumRight(AR, h_shiftedR)
