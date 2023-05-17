@@ -217,8 +217,6 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
 
         LH = sumLeft(AL, h_shiftedL)
         RH = sumRight(AR, h_shiftedR)
-        print('Worked...')
-        assert()
 
         # Make them symmetric (should not be necessary)
         LH = 0.5*(LH + LH.T)
@@ -227,6 +225,23 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
         # Create identity maps
         I = np.eye(D)
         Id = np.eye(d)
+
+        def CMap():
+            I = np.eye(D, dtype=complex)
+            C_map = ncon([AL, AL.conj(), h0_ten, AR, AR.conj()],
+                           ((1, 2, -3), (1, 3, -1), (3, 6, 2, 4), (-4, 4, 5),
+                               (-2, 6, 5))).reshape(D**2, D**2)
+            C_map = C_map + ncon([LH, I], ((-1, -3), (-2, -4))).reshape(D**2, D**2)
+            C_map = C_map + ncon([I, RH], ((-1, -3), (-2, -4))).reshape(D**2, D**2)
+
+            return C_map
+
+        C_map_old = CMap()
+        C_map_new = construct_CMap(AL, AR, h0_ten, LH, RH, D)
+
+        print(np.allclose(C_map_old, C_map_new))
+        print('Worked...')
+        assert()
 
         def CMapOp(C_mat):
             I = np.eye(D, dtype=complex)
@@ -410,6 +425,66 @@ def sumRight(AR, h, tol=1e-8):
     Rh = R.reshape(D, D)
 
     return Rh
+
+def construct_CMap(Al, Ar, h, LH, RH, D):
+    C_map = np.zeros((D**2, D**2), dtype=complex)
+    n_sites = len(h.shape) // 2
+
+    contr_h = list(range(1, 2*n_sites+1))
+    start_i = contr_h[-1] + 1
+
+    for nL in range(1, n_sites):
+        nR = n_sites - nL
+        i_ = start_i
+        h_i = contr_h[0]
+        h_i_dag = contr_h[n_sites]
+        contr_Al = [[i_, h_i , i_+1]]
+        contr_Al_dag = [[i_, h_i_dag, i_+2]]
+
+        i_ = i_+1
+        h_i += 1
+        h_i_dag += 1
+
+        for _ in range(nL - 1):
+            contr_Al.append([i_, h_i, i_+2])
+            contr_Al_dag.append([i_+1, h_i_dag, i_+3])
+
+            i_ += 2
+            h_i += 1
+            h_i_dag += 1
+
+        contr_Al[-1][-1] = -3
+        contr_Al_dag[-1][-1] = -1
+
+        contr_Ar = []
+        contr_Ar_dag = []
+
+        for _ in range(nR):
+            contr_Ar.append([i_, h_i, i_+2])
+            contr_Ar_dag.append([i_+1, h_i_dag, i_+3])
+
+            i_ += 2
+            h_i += 1
+            h_i_dag += 1
+
+        contr_Ar[0][0] = -4
+        contr_Ar_dag[0][0] = -2
+        contr_Ar_dag[-1][-1] = contr_Ar[-1][-1]
+
+        contr = contr_Al + contr_Ar_dag + [contr_h] + contr_Ar + contr_Ar_dag
+        print(contr)
+        tensors = [Al] * nL + [Al.conj()] * nL + [h] + [Ar] * nR + [Ar.conj()] * nR
+
+        C_map_ = ncon(tensors, contr).reshape(D**2, D**2)
+
+        C_map += C_map_
+
+    I = np.eye(D, dtype=complex)
+    C_map += ncon([LH, I], ((-1, -3), (-2, -4))).reshape(D**2, D**2)
+    C_map += ncon([I, RH], ((-1, -3), (-2, -4))).reshape(D**2, D**2)
+
+    return C_map
+
 
 def minAcC_svd(Ac, C, errors=False):
     print('Using svd strategy...')
