@@ -1,6 +1,7 @@
 import numpy as np
 from numpy import linalg as la
 from ncon import ncon
+from copy import copy
 
 from numpy.linalg import qr
 from scipy.sparse.linalg import eigs
@@ -234,8 +235,6 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
         C_prime = eigsh(COp, k=1, which='SA', v0=C.flatten(),
                        ncv=None, maxiter=None, tol=ev_tol)[1]
 
-        print('Worked...')
-        assert()
 
         # Convert to diagonal gauge for stability
         C_prime = C_prime.reshape(D, D)
@@ -251,18 +250,16 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
         dim = d*D**2
 
         def AcMapOp(AC):
-            AC_map = ncon([AL, AL.conj(), h0_ten, I],
-                            ((1, 2, -1), (1, 3, -4), (3, -5, 2, -2), (-3, -6))).reshape(dim, dim)
-            AC_map += ncon([I, h0_ten, AR, AR.conj()],
-                             ((-1, -4), (-5, 3, -2, 1), (-3, 1, 2), (-6, 3, 2))).reshape(dim, dim)
-            AC_map += ncon([LH, Id, I], ((-1, -4), (-2, -5), (-3, -6))).reshape(dim, dim)
-            AC_map += ncon([I, Id, RH], ((-1, -4), (-2, -5), (-3, -6))).reshape(dim, dim)
+            AC_map = construct_AcMap(AL, AR, h0_ten, d, D, LH, RH)
 
             return AC_map @ AC.reshape(-1)
 
+        print('Building AcMap')
         AC_Op = LinearOperator((d * D**2, d * D**2), matvec=AcMapOp, dtype=np.float64)
         AC_prime = (eigsh(AC_Op, k=1, which='SA', v0=AC.flatten(),
                 ncv=None, maxiter=None, tol=ev_tol)[1]).reshape(D, d, D)
+        print('Worked...')
+        assert()
 
         #AL, AR, ϵL, ϵR = minAcC(AC_prime, C_prime, errors=True)
 
@@ -464,6 +461,83 @@ def construct_CMap(Al, Ar, h, LH, RH, D):
     C_map += ncon([I, RH], ((-1, -3), (-2, -4))).reshape(D**2, D**2)
 
     return C_map
+
+def construct_AcMap(AL, AR, h, d, D, LH, RH):
+    dim = d*D**2
+    AcMap = np.zeros((dim , dim), dtype=complex)
+
+    n_sites = len(h.shape) // 2
+
+    h_contr = list(range(1, 2*n_sites+1))
+    start_i = h_contr[-1] + 1
+
+    I = np.eye(D, dtype=complex)
+    Id = np.eye(d, dtype=complex)
+
+    for site in range(n_sites):
+        i = start_i
+        nL = site
+        nR = n_sites - 1 - site
+
+        h_i = 1
+        h_i_dag = h_contr[n_sites]
+
+        Al_contr = []
+        Al_dag_contr = []
+        Ar_contr = []
+        Ar_dag_contr = []
+
+        for _ in range(nL):
+            Al_contr.append([i, h_i, i + 2])
+            Al_dag_contr.append([i+1, h_i_dag, i + 3])
+
+            h_i += 1
+            h_i_dag += 1
+            i += 2
+
+        # Skip over the site
+        h_i += 1
+        h_i_dag += 1
+
+        for _ in range(nR):
+            Ar_contr.append([i, h_i, i + 2])
+            Ar_dag_contr.append([i+1, h_i_dag, i + 3])
+
+            h_i += 1
+            h_i_dag += 1
+            i += 2
+
+        h_contr_ = copy(h_contr)
+        h_contr_[site] = -5
+        h_contr_[n_sites + site] = -2
+
+        if len(Al_contr) > 0:
+            Al_dag_contr[0][0] = Al_contr[0][0]
+            Al_contr[-1][-1] = -1
+            Al_dag_contr[-1][-1] = -4
+
+        if len(Ar_contr) > 0:
+            Ar_dag_contr[-1][-1] = Ar_contr[-1][-1]
+            Ar_contr[0][0] = -3
+            Ar_dag_contr[0][0] = -6
+
+        I_contr = []
+        if site == 0:
+            I_contr.append([-1, -4])
+        elif site == n_sites-1:
+            I_contr.append([-3, -6])
+        nI = len(I_contr)
+
+        contr = Al_contr + Al_dag_contr + [h_contr_] + Ar_contr + Ar_dag_contr + I_contr
+        tensors = [AL]*nL + [AL.conj()]*nL + [h] + [AR]*nR + [AR.conj()]*nR + [I]*nI
+        AcMap += ncon(tensors, contr).reshape(dim, dim)
+
+    AcMap += ncon([LH, Id, I], ((-1, -4), (-2, -5), (-3, -6))).reshape(dim, dim)
+    AcMap += ncon([I, Id, RH], ((-1, -4), (-2, -5), (-3, -6))).reshape(dim, dim)
+
+    return AcMap
+
+
 
 
 def minAcC_svd(Ac, C, errors=False):
