@@ -258,21 +258,18 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
         AC_Op = LinearOperator((d * D**2, d * D**2), matvec=AcMapOp, dtype=np.float64)
         AC_prime = (eigsh(AC_Op, k=1, which='SA', v0=AC.flatten(),
                 ncv=None, maxiter=None, tol=ev_tol)[1]).reshape(D, d, D)
-        print('Worked...')
-        assert()
 
         #AL, AR, ϵL, ϵR = minAcC(AC_prime, C_prime, errors=True)
 
-        m = D
         if strategy == 'polar':
-          AL = (polar(AC_prime.reshape(m * d, m))[0]).reshape(m, d, m)
-          AR = (polar(AC_prime.reshape(m, d * m), side='left')[0]
-                ).reshape(m, d, m)
+          AL = (polar(AC_prime.reshape(D * d, D))[0]).reshape(D, d, D)
+          AR = (polar(AC_prime.reshape(D, d * D), side='left')[0]
+                ).reshape(D, d, D)
         elif strategy == 'svd':
-          ut, _, vt = la.svd(AC.reshape(m * d, m) @ C_prime, full_matrices=False)
-          AL = (ut @ vt).reshape(m, d, m)
+          ut, _, vt = la.svd(AC.reshape(D * d, D) @ C_prime, full_matrices=False)
+          AL = (ut @ vt).reshape(D, d, D)
           ut, _, vt = la.svd(C_prime @ AC.reshape(m, d * m), full_matrices=False)
-          AR = (ut @ vt).reshape(m, d, m)
+          AR = (ut @ vt).reshape(D, d, D)
 
         ALC = ncon([AL, C_prime], ((-1, -2, 1), (1, -3)))
         ϵL = np.linalg.norm(ALC - AC)
@@ -410,12 +407,13 @@ def construct_CMap(Al, Ar, h, LH, RH, D):
 
     contr_h = list(range(1, 2*n_sites+1))
     start_i = contr_h[-1] + 1
+    contr_h = contr_h[n_sites:] + contr_h[:n_sites]
 
     for nL in range(1, n_sites):
         nR = n_sites - nL
         i_ = start_i
-        h_i = contr_h[0]
-        h_i_dag = contr_h[n_sites]
+        h_i = 1
+        h_i_dag = n_sites + 1
         contr_Al = [[i_, h_i , i_+1]]
         contr_Al_dag = [[i_, h_i_dag, i_+2]]
 
@@ -470,6 +468,7 @@ def construct_AcMap(AL, AR, h, d, D, LH, RH):
 
     h_contr = list(range(1, 2*n_sites+1))
     start_i = h_contr[-1] + 1
+    h_contr = h_contr[n_sites:] + h_contr[:n_sites]
 
     I = np.eye(D, dtype=complex)
     Id = np.eye(d, dtype=complex)
@@ -480,7 +479,7 @@ def construct_AcMap(AL, AR, h, d, D, LH, RH):
         nR = n_sites - 1 - site
 
         h_i = 1
-        h_i_dag = h_contr[n_sites]
+        h_i_dag = n_sites + 1
 
         Al_contr = []
         Al_dag_contr = []
@@ -508,8 +507,8 @@ def construct_AcMap(AL, AR, h, d, D, LH, RH):
             i += 2
 
         h_contr_ = copy(h_contr)
-        h_contr_[site] = -5
-        h_contr_[n_sites + site] = -2
+        h_contr_[site] = -2
+        h_contr_[n_sites + site] = -5
 
         if len(Al_contr) > 0:
             Al_dag_contr[0][0] = Al_contr[0][0]
@@ -536,8 +535,6 @@ def construct_AcMap(AL, AR, h, d, D, LH, RH):
     AcMap += ncon([I, Id, RH], ((-1, -4), (-2, -5), (-3, -6))).reshape(dim, dim)
 
     return AcMap
-
-
 
 
 def minAcC_svd(Ac, C, errors=False):
@@ -567,6 +564,7 @@ def minAcC_svd(Ac, C, errors=False):
     if errors:
         return AL, AR, ϵL, ϵR
     return AL, AR
+
 
 def minAcC_polar(Ac, C, errors=False):
     Ul_Ac, _ = polar(Ac.reshape(D*d, D), side='left')
@@ -670,7 +668,6 @@ if __name__=="__main__":
     print('Trying vumps...')
 
     _ , _, _, energies = gs_vumps(H, 2, 4, maxiter=100, strategy='polar')
-    assert()
     print(energies)
     plt.figure()
     plt.plot(energies, '--')

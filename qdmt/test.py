@@ -4,8 +4,9 @@ if __name__=="__main__":
     n_sites = 5
 
     h_contr = list(range(1, 2*n_sites+1))
-    print('Contr_h: ', h_contr)
     start_i = h_contr[-1] + 1
+    h_contr = h_contr[n_sites:] + h_contr[:n_sites]
+    print('Contr_h: ', h_contr)
 
     for site in range(n_sites):
         i = start_i
@@ -16,7 +17,7 @@ if __name__=="__main__":
         print(f'   (nL, nR): {nL}, {nR}')
 
         h_i = 1
-        h_i_dag = h_contr[n_sites]
+        h_i_dag = n_sites+1
 
         Al_contr = []
         Al_dag_contr = []
@@ -45,8 +46,8 @@ if __name__=="__main__":
 
 
         h_contr_ = copy(h_contr)
-        h_contr_[site] = -5
-        h_contr_[n_sites + site] = -2
+        h_contr_[site] = -2
+        h_contr_[n_sites + site] = -5
 
         if len(Al_contr) > 0:
             Al_dag_contr[0][0] = Al_contr[0][0]
