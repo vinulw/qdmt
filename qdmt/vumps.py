@@ -226,35 +226,16 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
         I = np.eye(D)
         Id = np.eye(d)
 
-        def CMap():
-            I = np.eye(D, dtype=complex)
-            C_map = ncon([AL, AL.conj(), h0_ten, AR, AR.conj()],
-                           ((1, 2, -3), (1, 3, -1), (3, 6, 2, 4), (-4, 4, 5),
-                               (-2, 6, 5))).reshape(D**2, D**2)
-            C_map = C_map + ncon([LH, I], ((-1, -3), (-2, -4))).reshape(D**2, D**2)
-            C_map = C_map + ncon([I, RH], ((-1, -3), (-2, -4))).reshape(D**2, D**2)
-
-            return C_map
-
-        C_map_old = CMap()
-        C_map_new = construct_CMap(AL, AR, h0_ten, LH, RH, D)
-
-        print(np.allclose(C_map_old, C_map_new))
-        print('Worked...')
-        assert()
-
         def CMapOp(C_mat):
-            I = np.eye(D, dtype=complex)
-            C_map = ncon([AL, AL.conj(), h0_ten, AR, AR.conj()],
-                           ((1, 2, -3), (1, 3, -1), (3, 6, 2, 4), (-4, 4, 5),
-                               (-2, 6, 5))).reshape(D**2, D**2)
-            C_map = C_map + ncon([LH, I], ((-1, -3), (-2, -4))).reshape(D**2, D**2)
-            C_map = C_map + ncon([I, RH], ((-1, -3), (-2, -4))).reshape(D**2, D**2)
+            C_map =  construct_CMap(AL, AR, h0_ten, LH, RH, D)
             return (C_map @ C_mat.reshape(-1)).flatten()
 
         COp = LinearOperator((D**2, D**2), matvec=CMapOp, dtype=np.float64)
         C_prime = eigsh(COp, k=1, which='SA', v0=C.flatten(),
                        ncv=None, maxiter=None, tol=ev_tol)[1]
+
+        print('Worked...')
+        assert()
 
         # Convert to diagonal gauge for stability
         C_prime = C_prime.reshape(D, D)
@@ -471,8 +452,7 @@ def construct_CMap(Al, Ar, h, LH, RH, D):
         contr_Ar_dag[0][0] = -2
         contr_Ar_dag[-1][-1] = contr_Ar[-1][-1]
 
-        contr = contr_Al + contr_Ar_dag + [contr_h] + contr_Ar + contr_Ar_dag
-        print(contr)
+        contr = contr_Al + contr_Al_dag + [contr_h] + contr_Ar + contr_Ar_dag
         tensors = [Al] * nL + [Al.conj()] * nL + [h] + [Ar] * nR + [Ar.conj()] * nR
 
         C_map_ = ncon(tensors, contr).reshape(D**2, D**2)
