@@ -160,6 +160,8 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
     m = int(m)
     h0_ten = h0.reshape(*[d] * 2*m)
 
+    print('h0_ten shape: ', h0_ten.shape)
+
     δ = 1
     count = 0
     energies = []
@@ -186,7 +188,7 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
 
         for i in range(1, m):
             edges_A.append([curr_i, m+1+i, curr_i+2])
-            edges_A_dag.append([curr_i+1, 1+1, curr_i+3])
+            edges_A_dag.append([curr_i+1, 1+i, curr_i+3])
             curr_i += 2
 
         edges = [*edges_A, h0_edge, *edges_A_dag, [curr_i, curr_i+2], [curr_i+1, curr_i+2]]
@@ -203,7 +205,7 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
 
         for i in range(1, m):
             edges_A.append([curr_i, m+1+i, curr_i+2])
-            edges_A_dag.append([curr_i+1, 1+1, curr_i+3])
+            edges_A_dag.append([curr_i+1, i+1, curr_i+3])
             curr_i += 2
 
         edges_A_dag[-1][-1] = curr_i
@@ -332,7 +334,7 @@ def sumLeft(AL, h, tol=1e-8):
 
     for i in range(1, m):
         edges_A.append([curr_i, m+1+i, curr_i+2])
-        edges_A_dag.append([curr_i+1, 1+1, curr_i+3])
+        edges_A_dag.append([curr_i+1, i+1, curr_i+3])
         curr_i += 2
 
     edges_A[-1][-1] = -1
@@ -375,7 +377,7 @@ def sumRight(AR, h, tol=1e-8):
 
     for i in range(1, m):
         edges_A.append([curr_i, m+1+i, curr_i+2])
-        edges_A_dag.append([curr_i+1, 1+1, curr_i+3])
+        edges_A_dag.append([curr_i+1, i+1, curr_i+3])
         curr_i += 2
 
     edges_A_dag[-1][-1] = curr_i
@@ -667,7 +669,7 @@ if __name__=="__main__":
 
     print('Trying vumps...')
 
-    _ , _, _, energies = gs_vumps(H, 2, 4, maxiter=100, strategy='polar')
+    _ , _, _, energies = gs_vumps(H2, 2, 4, maxiter=100, strategy='polar')
     print(energies)
     plt.figure()
     plt.plot(energies, '--')
