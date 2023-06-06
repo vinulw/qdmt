@@ -70,8 +70,8 @@ def mixedCanonical(A):
     _, S, _ = la.svd(TM)
     print(S[:3])
 
-    _, l = leftFixedPoint(TM)
-    _, r = rightFixedPoint(TM)
+    normL, l = leftFixedPoint(TM)
+    normR, r = rightFixedPoint(TM)
 
     l = l.reshape(D, D)
     r = r.reshape(D, D)
@@ -91,6 +91,22 @@ def mixedCanonical(A):
     l = l / np.sqrt(norm)
     r = r / np.sqrt(norm)
 
+    print('Checking left eigenvector...')
+    _, leftVal = is_eigenvector(TM, l.reshape(-1), left=True)
+
+    print('Checking right eigenvector...')
+    _, rightVal = is_eigenvector(TM, r.reshape(-1))
+    print(leftVal)
+    print(rightVal)
+    lold = np.copy(l)
+    l /= np.real(leftVal)
+    r /= np.real(rightVal)
+    print('Rescaling worked...')
+    print(np.allclose(l, lold))
+
+    _, leftVal = is_eigenvector(TM, l.reshape(-1), left=True)
+    print(leftVal)
+
     # Decompose l = L^† L
     U, S, V = la.svd(l)
     print('Checking V = U^h')
@@ -98,9 +114,41 @@ def mixedCanonical(A):
 
     L = np.diag(np.sqrt(S)) @ V
     Linv = la.inv(L)
+    print('Checking l == L^† L')
+    print(np.allclose(l, L.conj().T @ L ))
 
-    Al = ncon([L, A, Linv], ((-1, 1), (1, -2, 2), (2, -3)))
+    Lprime = L.conj()
+    LdagL = ncon([Lprime, Lprime.conj()], ((1, -1), (1, -2)))
+    print(np.allclose(LdagL, l))
 
+    Lprimeinv = la.inv(Lprime)
+    LLinv = ncon([LdagL, Lprimeinv, Lprimeinv.conj()], ((1, 2), (1, -1), (2, -2)))
+    I = np.eye(D)
+    print(np.allclose(LLinv, I))
+
+    LLA = ncon([Lprime, Lprime.conj(), A, A.conj()], ((1, 2), (1, 3), (2, 4, -1), (3, 4, -2)))
+    λs = LLA.reshape(-1) / l.reshape(-1)
+    print(np.allclose(λs, λs[0]))
+    print(λs[0])
+
+    print('Checking inverse...')
+    I = np.eye(D)
+    print(np.allclose(L @ Linv, I))
+
+    Al = ncon([Lprime, A, Lprimeinv], ((-1, 1), (1, -2, 2), (2, -3)))
+    # Al = ncon([L, A, Linv], ((-1, 1), (1, -2, 2), (2, -3)))
+
+    print('Checking Al condition...')
+    ALAL = ncon([Al, Al.conj()], ((1, 2, -1), (1, 2, -2)))
+    vZeros = np.isclose(I.reshape(-1), 0)
+    notvZeros = np.invert(vZeros)
+    λs = ALAL.reshape(-1)[notvZeros] / I.reshape(-1)[notvZeros]
+    print(np.allclose(ALAL, I))
+    print('Al Multiple of I...')
+    print(np.allclose(λs, λs[0]))
+    print(λs[0])
+
+    print('Checking Ar condition...')
     # Decompose r = R^† R
     U, S, V = la.svd(r)
     print('Checking V = U^h')
@@ -109,9 +157,27 @@ def mixedCanonical(A):
     R = np.diag(np.sqrt(S)) @ V
     Rinv = la.inv(R)
 
-    Ar = ncon([Rinv, A, R], ((-1, 1), (1, -2, 2), (2, -3)))
+    print('R†R = r')
+    print(np.allclose(R.conj().T @ R, r))
 
-    C = L @ R
+    Rprime = R.conj().T
+    Rprimeinv = la.inv(Rprime)
+    RdagR = ncon([Rprime, Rprime.conj()], ((-1, 1), (-2, 1)))
+    print(np.allclose(RdagR, r))
+
+    # Ar = ncon([Rinv, A, R], ((-1, 1), (1, -2, 2), (2, -3)))
+    Ar = ncon([Rprimeinv, A, Rprime], ((-1, 1), (1, -2, 2), (2, -3)))
+
+    ARAR = ncon([Ar, Ar.conj()], ((-1, 1, 2), (-2, 1, 2)))
+    vZeros = np.isclose(I.reshape(-1), 0)
+    notvZeros = np.invert(vZeros)
+    λs = ARAR.reshape(-1)[notvZeros] / I.reshape(-1)[notvZeros]
+    print(np.allclose(ALAL, I))
+    print('Ar Multiple of I...')
+    print(np.allclose(λs, λs[0]))
+    print(λs[0])
+
+    C = Lprime @ Rprime
 
     # Diagonlize the mixed gauge
     U, S, V = la.svd(C)
@@ -128,6 +194,18 @@ def mixedCanonical(A):
 
     return Al, Ar, C
 
+
+def is_eigenvector(M, v, left=False):
+    if left:
+        Mv = v @ M
+    else:
+        Mv = M @ v
+
+    vZeros = np.isclose(v, 0)
+    λs = Mv / v
+    λs = λs[np.invert(vZeros)]
+
+    return np.allclose(λs, λs[0]), λs[0]
 
 
 if __name__=="__main__":

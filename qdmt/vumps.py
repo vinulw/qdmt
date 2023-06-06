@@ -130,7 +130,7 @@ def evaluateEnergy(AL, AR, C, h, debug=False):
 
     return energy, energyL_new, energyR_new
 
-def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
+def gs_vumps(AL, AR, C, h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
     '''
     Perform vumps to optimise local hamiltonian h.
     '''
@@ -138,20 +138,20 @@ def gs_vumps(h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
 
     ev_tol = 1e-12 # Should be an optional
     # AL, AR, C = random_mixed_gauge(d, D, normalise=True)
-    C = np.random.rand(D)
-    C = C / la.norm(C)
-    AL = (la.svd(np.random.rand(D* d, D), full_matrices=False)[0]).reshape(D, d, D)
-    AL = normalise_A(AL)
-    AR = (la.svd(np.random.rand(D* d, D), full_matrices=False)[0]).reshape(D, d, D).transpose(2, 1, 0)
-    AR = normalise_A(AR)
-    print('Checking gauge condition...')
-    I = np.eye(D)
-    ALAL = ncon([AL, AL], ((1, 2, -1), (1, 2, -2)))
-    print(np.allclose(I, ALAL))
-    ARAR = ncon([AR, AR], ((-1, 1, 2), (-2, 1, 2)))
-    print(np.allclose(I, ARAR))
-    C = np.diag(C)
-    AC = ncon([AL, C], [[-1, -2, 1], [1, -3]])
+    # C = np.random.rand(D)
+    # C = C / la.norm(C)
+    # AL = (la.svd(np.random.rand(D* d, D), full_matrices=False)[0]).reshape(D, d, D)
+    # AL = normalise_A(AL)
+    # AR = (la.svd(np.random.rand(D* d, D), full_matrices=False)[0]).reshape(D, d, D).transpose(2, 1, 0)
+    # AR = normalise_A(AR)
+    # print('Checking gauge condition...')
+    # I = np.eye(D)
+    # ALAL = ncon([AL, AL], ((1, 2, -1), (1, 2, -2)))
+    # print(np.allclose(I, ALAL))
+    # ARAR = ncon([AR, AR], ((-1, 1, 2), (-2, 1, 2)))
+    # print(np.allclose(I, ARAR))
+    # C = np.diag(C)
+    # AC = ncon([AL, C], [[-1, -2, 1], [1, -3]])
     h0 = h.copy()
 
     # Reshape the h (d**m, d**m ) -> (d, d, d, ..., d)
