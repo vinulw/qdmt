@@ -120,6 +120,46 @@ def evaluateEnergy(AL, AR, C, h, debug=False):
 
     return energy, energyL_new, energyR_new
 
+def expValNMixed(O, Ac, Ar):
+    '''
+    Calculae the expectation value of an N-site operator in mixed gauge.
+        Parameters
+        ----------
+        O : np.array(d, d, ..., d, d)
+            two-site operator,
+            ordered top legs followed by bottom legs.
+        Ac : np.array(D, d, D)
+            MPS tensor with 3 legs, ordered left-bottom-right, center gauged.
+        Ar : np.array(D, d, D)
+            MPS tensor with 3 legs, ordered left-bottom-right, right gauged.
+        Returns
+        -------
+        o : complex float
+            expectation value of O.
+    '''
+    n = len(O.shape) // 2
+    tensors = [Ac] + [Ar] * (n-1) # Top tensors
+    tensors += [Ac.conj()] + [Ar.conj()] * (n-1) + [O] # Bottom tensors and O
+
+    # Top tensor contractions
+    contrTop = zip(range(1, 2*n, 2), range(2, 2*n+1, 2), range(3, 2*n+2, 2))
+    contrTop = [list(c) for c in contrTop]
+    # Bottom tensor contractions
+    final = 2*n+1
+    contrBot = zip(range(final, final + 2*n, 2),
+                   range(final+1, final + 2 + 2*n, 2),
+                   range(final+2, final + 3 + 2*n, 2))
+    contrBot = [list(c) for c in contrBot]
+    contrBot[0][0] = contrTop[0][0] # Connect left
+    contrBot[-1][-1] = contrTop[-1][-1] # Connect right
+    # O contr
+    contrO = [list(range(2, 4*n+1, 2))]
+
+    contr = contrTop + contrBot + contrO
+    print(contr)
+
+    # TODO: Set order to be more efficient
+    return ncon(tensors, contr)
 def gs_vumps(h, D, d, tol=1e-5, maxiter=100, strategy='polar', A0=None):
     '''
     Perform vumps to optimise local hamiltonian h.

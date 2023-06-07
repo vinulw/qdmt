@@ -1,76 +1,23 @@
 from copy import copy
+import numpy as np
+from vumps import expValNMixed
+from vumpt_tutorial import expVal2Mixed
+from vumpt_tools import createMPS, normalizeMPS, mixedCanonical
+from hamiltonian import Hamiltonian
 
 if __name__=="__main__":
-    n_sites = 5
+    d = 2
+    D = 4
+    A = createMPS(D, d)
+    A = normalizeMPS(A)
+    Al, Ac, Ar, C = mixedCanonical(A)
 
-    h_contr = list(range(1, 2*n_sites+1))
-    start_i = h_contr[-1] + 1
-    h_contr = h_contr[n_sites:] + h_contr[:n_sites]
-    print('Contr_h: ', h_contr)
+    H = Hamiltonian({'ZZ':-1, 'X':0.2}).to_matrix()
+    H = H.reshape(2, 2, 2, 2)
 
-    for site in range(n_sites):
-        i = start_i
-        nL = site
-        nR = n_sites - 1 - site
-
-        print('Site no: ', site)
-        print(f'   (nL, nR): {nL}, {nR}')
-
-        h_i = 1
-        h_i_dag = n_sites+1
-
-        Al_contr = []
-        Al_dag_contr = []
-        Ar_contr = []
-        Ar_dag_contr = []
-
-        for _ in range(nL):
-            Al_contr.append([i, h_i, i + 2])
-            Al_dag_contr.append([i+1, h_i_dag, i + 3])
-
-            h_i += 1
-            h_i_dag += 1
-            i += 2
-
-        # Skip over the site
-        h_i += 1
-        h_i_dag += 1
-
-        for _ in range(nR):
-            Ar_contr.append([i, h_i, i + 2])
-            Ar_dag_contr.append([i+1, h_i_dag, i + 3])
-
-            h_i += 1
-            h_i_dag += 1
-            i += 2
-
-
-        h_contr_ = copy(h_contr)
-        h_contr_[site] = -2
-        h_contr_[n_sites + site] = -5
-
-        if len(Al_contr) > 0:
-            Al_dag_contr[0][0] = Al_contr[0][0]
-            Al_contr[-1][-1] = -1
-            Al_dag_contr[-1][-1] = -4
-
-        if len(Ar_contr) > 0:
-            Ar_dag_contr[-1][-1] = Ar_contr[-1][-1]
-            Ar_contr[0][0] = -3
-            Ar_dag_contr[0][0] = -6
-
-        I_contr = []
-        if site == 0:
-            I_contr.append([-1, -4])
-        elif site == n_sites-1:
-            I_contr.append([-3, -6])
-
-        print('   Al: ', Al_contr)
-        print('   Al_dag: ', Al_dag_contr)
-        print('   Ar: ', Ar_contr)
-        print('   Ar_dag: ', Ar_dag_contr)
-        print('   h: ', h_contr_)
-        print('   I: ',I_contr)
-
-
+    e2 = expVal2Mixed(H, Ac, Ar)
+    print('E two site: ', e2)
+    eN = expValNMixed(H, Ac, Ar)
+    print('E N site: ', eN)
+    print('Close? : ', np.allclose(e2, eN))
 
