@@ -160,6 +160,39 @@ def expValNMixed(O, Ac, Ar):
 
     # TODO: Set order to be more efficient
     return ncon(tensors, contr)
+
+def rescaledHnMixed(h, Ac, Ar):
+    '''
+    Rescale the Hamiltonian so that the expectation is 0.
+
+        Parameters
+        ----------
+        h : np.array (d, d, ..., d, d)
+            Hamiltonian that needs to be reduced, ordered with the top legs
+            followed by the bottom legs.
+        Ac : np.array(D, d, D)
+            MPS tensor with 3 legs, ordered left-bottom-right, center gauged.
+        Ar : np.array(D, d, D)
+            MPS tensor with 3 legs, ordered left-bottom-right, right gauged.
+        Returns
+        -------
+        hTilde : np.array (d, d, ..., d, d)
+            rescaled Hamiltonian, ordered top legs then bottom legs.
+    '''
+    d = Ac.shape[1]
+    n = len(h.shape) // 2
+
+    e = np.real(expValNMixed(h, Ac, Ar))
+
+    # Generate the identity tensor
+    Id = np.eye(d)
+    tensors = [Id] * n
+    contr = list(zip(range(-1, -n-1, -1), range(-n-1, -2*n-1, -1)))
+    I = ncon(tensors, contr)
+
+    hTilde = h - e * I
+    return hTilde
+
 def gs_vumps(h, D, d, tol=1e-5, maxiter=100, strategy='polar', A0=None):
     '''
     Perform vumps to optimise local hamiltonian h.
