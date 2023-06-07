@@ -5,6 +5,7 @@ from copy import copy
 
 from numpy.linalg import qr
 from scipy.sparse.linalg import eigs
+from scipy.sparse.linalg import eigsh
 from scipy.linalg import polar
 from scipy.sparse.linalg import bicgstab, LinearOperator
 from numpy.linalg import solve
@@ -13,37 +14,26 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 from hamiltonian import Hamiltonian
 
-def random_mixed_gauge(d, D, normalise=False):
+from vumpt_tools import createMPS, normalizeMPS, mixedCanonical
+
+def random_mixed_gauge(D, d, normalise=True):
     '''
     Generate a random mixed canonical uMPS state with bond dimension D and
     physical dimension d
 
     Returns
     -------
+    A  :  Normalised state tensor
     AL :  Left orthonormal tensor representing A
     AR :  Right orthonormal tensor representing A
     C  :  Central tensor singular values, use np.diag(C) to get full matrix
     '''
 
-    C = np.random.rand(D)
-    C = C / la.norm(C) # Normalisation of C
-
-    AL = np.random.rand(D*d, D) + 1j*np.random.rand(D*d, D)
-    AR = np.random.rand(D,d*D) + 1j*np.random.rand(D, d*D)
-    AL = (la.svd(AL, full_matrices=False)[0]).reshape(D, d, D)
-    AR = (la.svd(AR, full_matrices=False)[2]).reshape(D, d, D)
-
-    # Normalize the TM
+    A = createMPS(D, d)
     if normalise:
-        TML = ncon([AL, AL.conj()], ((-1, 1, -3), (-2, 1, -4)))
-        _, S, _ = la.svd(TML.reshape(D**2, D**2))
-        AL = AL / np.sqrt(S[0])
-
-        TMR = ncon([AR, AR.conj()], ((-1, 1, -3), (-2, 1, -4)))
-        _, S, _ = la.svd(TMR.reshape(D**2, D**2))
-        AR = AR / np.sqrt(S[0])
-
-    return AL, AR, C
+        A = normalizeMPS(A)
+    AL, _, AR, C = mixedCanonical(A)
+    return A, AL, AR, C
 
 def normalise_A(A):
     '''
@@ -130,28 +120,19 @@ def evaluateEnergy(AL, AR, C, h, debug=False):
 
     return energy, energyL_new, energyR_new
 
-def gs_vumps(AL, AR, C, h, d, D, tol=1e-5, maxiter=100, strategy='polar'):
+def gs_vumps(h, D, d, tol=1e-5, maxiter=100, strategy='polar', A0=None):
     '''
     Perform vumps to optimise local hamiltonian h.
     '''
-    from scipy.sparse.linalg import eigsh
+
+    if A0 is None:
+        A0 = createMPS(D, d)
+        A0 = normalizeMPS(A0)
+
+    AL, _, AR, C = mixedCanonical(A0)
+    AC = ncon([AL, C], [[-1, -2, 1], [1, -3]])
 
     ev_tol = 1e-12 # Should be an optional
-    # AL, AR, C = random_mixed_gauge(d, D, normalise=True)
-    # C = np.random.rand(D)
-    # C = C / la.norm(C)
-    # AL = (la.svd(np.random.rand(D* d, D), full_matrices=False)[0]).reshape(D, d, D)
-    # AL = normalise_A(AL)
-    # AR = (la.svd(np.random.rand(D* d, D), full_matrices=False)[0]).reshape(D, d, D).transpose(2, 1, 0)
-    # AR = normalise_A(AR)
-    # print('Checking gauge condition...')
-    # I = np.eye(D)
-    # ALAL = ncon([AL, AL], ((1, 2, -1), (1, 2, -2)))
-    # print(np.allclose(I, ALAL))
-    # ARAR = ncon([AR, AR], ((-1, 1, 2), (-2, 1, 2)))
-    # print(np.allclose(I, ARAR))
-    # C = np.diag(C)
-    # AC = ncon([AL, C], [[-1, -2, 1], [1, -3]])
     h0 = h.copy()
 
     # Reshape the h (d**m, d**m ) -> (d, d, d, ..., d)
@@ -654,8 +635,7 @@ def largest_evec_right(E, r0 = None, eval=False):
 if __name__=="__main__":
     d = 2
     D = 4
-    AL, AR, C = random_mixed_gauge(d, D, normalise=True)
-    C = np.diag(C)
+    A, AL, AR, C = random_mixed_gauge(D, d, normalise=True)
 
     H = Hamiltonian({'ZZ':-1, 'X':0.2}).to_matrix()
 
@@ -669,7 +649,7 @@ if __name__=="__main__":
 
     print('Trying vumps...')
 
-    _ , _, _, energies = gs_vumps(H2, 2, 4, maxiter=100, strategy='polar')
+    _ , _, _, energies = gs_vumps(H2, 4, 2, maxiter=100, strategy='polar')
     print(energies)
     plt.figure()
     plt.plot(energies, '--')

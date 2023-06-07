@@ -3,6 +3,8 @@ from tools import createMPS, mixedCanonical
 from ncon import ncon
 
 def test_mixedCanonical():
+    np.set_printoptions(precision=4, suppress=True)
+    print()
     D = 8
     d = 2
     A = createMPS(D, d)
@@ -18,10 +20,15 @@ def test_mixedCanonical():
     λs = ALAL.reshape(-1)[notvZeros] / I.reshape(-1)[notvZeros]
     assert np.allclose(λs, λs[0])
 
+    print(np.real(ALAL))
+    print(np.allclose(ALAL, I))
+
     # Checking Ar condition
     ARAR = ncon([Ar, Ar.conj()], ((-1, 1, 2), (-2, 1, 2)))
     λs = ARAR.reshape(-1)[notvZeros] / I.reshape(-1)[notvZeros]
     assert np.allclose(λs, λs[0])
+
+    print(np.allclose(ARAR, I))
 
     # Gauge condition
     CAR = ncon([C, Ar], ((-1, 1), (1, -2, -3)))
