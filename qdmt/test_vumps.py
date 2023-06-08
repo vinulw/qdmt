@@ -120,3 +120,37 @@ def test_sumRight():
     Rh_exact = RhMixed(htilde, Ar, C, tol=tol)
 
     assert np.allclose(Rh_mine, Rh_exact.reshape(-1))
+
+def test_AcMap():
+    from vumps import sumLeft, sumRight, construct_AcMap
+
+    from vumpt_tutorial import H_Ac
+    # Setup
+    d = 2
+    D = 4
+    A = createMPS(D, d)
+    A = normalizeMPS(A)
+    Al, Ac, Ar, C = mixedCanonical(A)
+
+    H = Hamiltonian({'ZZ':-1, 'X':0.2}).to_matrix()
+    H = H.reshape(2, 2, 2, 2)
+
+    print('Rescaled')
+    htilde = rescaledHnMixed(H, Ac, Ar)
+    tol = 1e-5
+
+    Lh = sumLeft(Al, C, htilde, tol=tol)
+    Rh = sumRight(Ar, C, htilde, tol=tol)
+
+    v = np.random.rand(d*D**2) + 1j*np.random.rand(d*D**2)
+
+    # Compare H_Ac
+    Lh = Lh.reshape(D, D)
+    Rh = Rh.reshape(D, D)
+    myH_Ac = construct_AcMap(Al, Ar, htilde, Lh, Rh)
+    mine = myH_Ac @ v
+
+    v = v.reshape(D, d, D)
+    correct = H_Ac(htilde, Al, Ar, Lh, Rh, v)
+
+    assert np.allclose(correct.reshape(-1), mine)

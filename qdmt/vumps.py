@@ -525,9 +525,10 @@ def construct_CMap(Al, Ar, h, LH, RH, D):
 
     return C_map
 
-def construct_AcMap(AL, AR, h, d, D, LH, RH):
+def construct_AcMap(AL, AR, h, LH, RH):
+    D, d, _ = AL.shape
     dim = d*D**2
-    AcMap = np.zeros((dim , dim), dtype=complex)
+
 
     n_sites = len(h.shape) // 2
 
@@ -538,6 +539,7 @@ def construct_AcMap(AL, AR, h, d, D, LH, RH):
     I = np.eye(D, dtype=complex)
     Id = np.eye(d, dtype=complex)
 
+    term_sites = []
     for site in range(n_sites):
         i = start_i
         nL = site
@@ -577,13 +579,13 @@ def construct_AcMap(AL, AR, h, d, D, LH, RH):
 
         if len(Al_contr) > 0:
             Al_dag_contr[0][0] = Al_contr[0][0]
-            Al_contr[-1][-1] = -1
-            Al_dag_contr[-1][-1] = -4
+            Al_contr[-1][-1] = -4
+            Al_dag_contr[-1][-1] = -1
 
         if len(Ar_contr) > 0:
             Ar_dag_contr[-1][-1] = Ar_contr[-1][-1]
-            Ar_contr[0][0] = -3
-            Ar_dag_contr[0][0] = -6
+            Ar_contr[0][0] = -6
+            Ar_dag_contr[0][0] = -3
 
         I_contr = []
         if site == 0:
@@ -593,11 +595,17 @@ def construct_AcMap(AL, AR, h, d, D, LH, RH):
         nI = len(I_contr)
 
         contr = Al_contr + Al_dag_contr + [h_contr_] + Ar_contr + Ar_dag_contr + I_contr
+        print(contr)
         tensors = [AL]*nL + [AL.conj()]*nL + [h] + [AR]*nR + [AR.conj()]*nR + [I]*nI
-        AcMap += ncon(tensors, contr).reshape(dim, dim)
+        term_sites.append(ncon(tensors, contr).reshape(dim, dim))
 
-    AcMap += ncon([LH, Id, I], ((-1, -4), (-2, -5), (-3, -6))).reshape(dim, dim)
-    AcMap += ncon([I, Id, RH], ((-1, -4), (-2, -5), (-3, -6))).reshape(dim, dim)
+    term3 = ncon([LH, Id, I], ((-1, -4), (-2, -5), (-3, -6))).reshape(dim, dim)
+    term4 = ncon([I, Id, RH], ((-1, -4), (-2, -5), (-3, -6))).reshape(dim, dim)
+    term4 = term4.conj()
+
+    AcMap = term3 + term4
+    for term in term_sites:
+        AcMap += term
 
     return AcMap
 
