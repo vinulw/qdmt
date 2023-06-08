@@ -217,3 +217,36 @@ def test_updateAcC():
     assert np.allclose(correctC, myC), 'C doesnt match'
 
     assert np.allclose(correctAc, myAc), 'Ac doesnt match'
+
+def test_minAcC():
+    from vumpt_tutorial import minAcC
+    from vumps import minAcCPolar
+    # Setup
+    d = 2
+    D = 4
+
+    AcTilde = np.random.rand(d*D**2) + 1j*np.random.rand(d*D**2)
+    AcTilde = AcTilde.reshape(D, d, D)
+
+    CTilde = np.random.rand(D**2) + 1j*np.random.rand(D**2)
+    CTilde = CTilde.reshape(D, D)
+
+    tol=1e-5
+
+    # Compare
+    cAl, cAc, cAr, cC = minAcC(AcTilde, CTilde)
+    mAl, mAc, mAr, mC = minAcCPolar(AcTilde, CTilde)
+
+    assert np.allclose(cAl, mAl)
+    assert np.allclose(cAr, mAr)
+    assert np.allclose(cAc, mAc)
+    assert np.allclose(cC, mC)
+
+    I = np.eye(D)
+
+    # Test canonicalisation conditions
+    ALAL = ncon([mAl, mAl.conj()], ((1, 2, -1), (1, 2, -2)))
+    assert np.allclose(I, ALAL)
+
+    ARAR = ncon([mAr, mAr.conj()], ((-1, 1, 2), (-2, 1, 2)))
+    assert np.allclose(I, ARAR)

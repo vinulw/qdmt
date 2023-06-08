@@ -664,57 +664,26 @@ def minAcC_svd(Ac, C, errors=False):
     return AL, AR
 
 
-def minAcC_polar(Ac, C, errors=False):
-    Ul_Ac, _ = polar(Ac.reshape(D*d, D), side='left')
-    Ul_C, _ = polar(C, side='left')
+def minAcCPolar(AcTilde, CTilde, tol=1e-5):
+    from vumpt_tools import rightOrthonormalize
+    D, d, _ = AcTilde.shape
+    tol = max(tol, 1e-14)
 
-    Al = Ul_Ac @ (Ul_C.conj().T)
-    Al = Al.reshape(D, d, D)
+    Ul_Ac, _ = polar(AcTilde.reshape(D*d, D), side='left')
+    Ul_C, _ = polar(CTilde, side='left')
 
-    Ur_Ac, _ = polar(Ac.reshape(D, D*d), side='right')
-    Ur_C, _ = polar(C, side='right')
+    Al = (Ul_Ac @ (Ul_C.conj().T)).reshape(D, d, D)
 
-    Ar = (Ur_C.conj().T) @ Ur_Ac
-    Ar = Ar.reshape(D, d, D)
+    # find Ar and C through rightOrthonormalize
+    # TODO dig into the rightOrthonormalize and rewrite
+    C, Ar = rightOrthonormalize(Al, CTilde, tol=tol)
+    norm = np.trace(C @ C.conj().T) # normalise state
+    C = C / np.sqrt(norm)
 
-    print('Verigying Al canonical...')
-    AlAl = ncon([Al, Al.conj()], ((1, 2, -1), (1, 2, -2)))
-    print(np.allclose(AlAl, np.eye(D)))
+    Ac = ncon([Al, C], ((-1, -2, 1), (1, -3)))
 
-    print('Verigying Ar canonical...')
-    ArAr = ncon([Ar, Ar.conj()], ((-1, 1, 2), (-2, 1, 2)))
-    print(np.allclose(ArAr, np.eye(D)))
+    return Al, Ac, Ar, C
 
-    AlC = ncon([Al, C], ((-1, -2, 1), (1, -3)))
-    ϵL = np.linalg.norm(AlC - Ac) # Error in Al, should converge near optima
-
-    CAr = ncon([C, Ar], ((-1, 1), (1, -2, -3)))
-    ϵR = np.linalg.norm(CAr - Ac) # Error in Ar should converge near optima
-
-    # Don't think I need to do all of this
-    # # Diagonlise C and gauge transform Al and Ar
-    # print('Diagonalising C')
-    # U, C, V = la.svd(C)
-    # C = np.diag(C)
-    # Al = ncon([U.conj().T, Al, U], ((-1, 1), (1, -2, 2), (2, -3)))
-    # # Ar = ncon([V, Ar, V.conj().T], ((-1, 1), (1, -2, 2), (2, -3)))
-
-    # print('Verigying Al canonical...')
-    # AlAl = ncon([Al, Al.conj()], ((1, 2, -1), (1, 2, -2)))
-    # print(np.allclose(AlAl, np.eye(D)))
-
-    # print('Verigying Ar canonical...')
-    # ArAr = ncon([Ar, Ar.conj()], ((-1, 1, 2), (-2, 1, 2)))
-    # print(np.allclose(ArAr, np.eye(D)))
-
-    # print('Verifying Ac condition...')
-    # Ac = ncon([Al, C], ((-1, -2, 1), (1, -3)))
-    # Acr = ncon([C, Ar], ((-1, 1), (1, -2, -3)))
-    # print(np.linalg.norm(Ac - Acr ))
-
-    if errors:
-        return Al, Ar, ϵL, ϵR
-    return Al, Ar
 
 def largest_evec_left(E, l0 = None, eval=False):
     '''
