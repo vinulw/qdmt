@@ -42,9 +42,9 @@ def test_rescaledHMixed():
 
     assert np.allclose(h, hN)
 
-def test_EtildeLeft():
-    from vumps import EtildeLeft as EtildeLeft_mine
-    from vumpt_tutorial import EtildeLeft
+def test_Etilde():
+    from vumps import Etilde
+    from vumpt_tutorial import EtildeLeft, EtildeRight
 
     d = 2
     D = 4
@@ -52,17 +52,26 @@ def test_EtildeLeft():
     A = normalizeMPS(A)
     Al, Ac, Ar, C = mixedCanonical(A)
 
+    v = np.random.rand(D**2) # Take a random v to test
+
+    # Calculate the left vs
     l = np.eye(D) # left fixed point of left transfer matrix: left orthonormal
     r = C @ np.conj(C).T # right fixed point of left transfer matrix
 
-    v = np.random.rand(D**2) # Take a random v to test
+    vCorrectLeft = EtildeLeft(Al, l, r, v)
 
-    vCorrect = EtildeLeft(Al, l, r, v)
+    ELmine = Etilde(Al, l.reshape(D**2), r.reshape(D**2))
+    vMineLeft = ELmine.conj().T @ v
 
-    Etildemine = EtildeLeft_mine(Al, l.reshape(D**2), r.reshape(D**2))
-    vMine = Etildemine.conj().T @ v
+    # Calculate the right vs
+    l = C.conj().T @ C
+    r = np.eye(D)
+    vCorrectRight = EtildeRight(Ar, l, r, v)
+    ERmine = Etilde(Ar, l.reshape(-1), r.reshape(-1))
+    vMineRight = ERmine @ v
 
-    assert np.allclose(vMine, vCorrect)
+    assert np.allclose(vMineLeft, vCorrectLeft)
+    assert np.allclose(vMineRight, vCorrectRight)
 
 def test_sumLeft():
     from vumps import sumLeft

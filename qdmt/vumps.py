@@ -376,14 +376,14 @@ def gs_vumps(h, D, d, tol=1e-5, maxiter=100, strategy='polar', A0=None):
     e = evaluateEnergy(AL, AR, C, h) # Calculate the final energy
     return AL, AR, C, energies
 
-def EtildeLeft(AL, l, r):
-    D = AL.shape[0]
+def Etilde(A, l, r):
+    D = A.shape[0]
 
     # Create fixed point
     fixed = ncon([l, r], ((-2,),(-1,)))
 
     # Create transfer matrix
-    transfer = ncon([AL, AL.conj()], ((-1, 1, -3), (-2, 1, -4))).reshape(D**2, D**2)
+    transfer = ncon([A, A.conj()], ((-1, 1, -3), (-2, 1, -4))).reshape(D**2, D**2)
 
     # Put together with identity
     Etilde = np.eye(D**2) - transfer + fixed
@@ -419,9 +419,9 @@ def sumLeft(AL, C, h, tol=1e-8):
 
     l = np.eye(D).reshape(-1)
     r = (C @ C.conj().T).reshape(-1)
-    Etilde = EtildeLeft(AL, l, r)
+    Et = Etilde(AL, l, r)
 
-    A_ = Etilde.conj().T # So that Ax = b
+    A_ = Et.conj().T # So that Ax = b
     mvec = lambda v: A_ @ v
     A = LinearOperator((D**2, D**2), matvec=mvec)
 
@@ -453,6 +453,8 @@ def sumRight(AR, h, tol=1e-8):
     edges = edges_A + [h0_edge] + edges_A_dag
     tensors = [*[AR]*m, h, *[AR.conj()]*m]
     Hr = ncon(tensors, edges)
+    # To be used in Ax = b solver
+    b = Hr.reshape(D**2).conj()
 
     # Set up transfer matrix
     ELL = ncon([AR, AR.conj()], ((-1, 1, -3), (-2, 1, -4)))
