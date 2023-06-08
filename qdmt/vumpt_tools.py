@@ -418,10 +418,6 @@ def mixedCanonical(A, L0=None, R0=None, tol=1e-14, maxIter=1e5):
     L, Al = leftOrthonormalize(A, L0, tol, maxIter)
     R, Ar = rightOrthonormalize(A, R0, tol, maxIter)
 
-    AlAl = ncon([Al, Al.conj()], ((1, 2, -1), (1, 2, -2)))
-    I = np.eye(D)
-    print(np.allclose(AlAl, I))
-
     # center matrix C is matrix multiplication of L and R
     C = L @ R
 

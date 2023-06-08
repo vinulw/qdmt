@@ -376,6 +376,21 @@ def gs_vumps(h, D, d, tol=1e-5, maxiter=100, strategy='polar', A0=None):
     e = evaluateEnergy(AL, AR, C, h) # Calculate the final energy
     return AL, AR, C, energies
 
+def EtildeLeft(AL, l, r):
+    D = AL.shape[0]
+
+    # Create fixed point
+    fixed = ncon([l, r], ((-2,),(-1,)))
+
+    # Create transfer matrix
+    transfer = ncon([AL, AL.conj()], ((-1, 1, -3), (-2, 1, -4))).reshape(D**2, D**2)
+
+    # Put together with identity
+    Etilde = np.eye(D**2) - transfer + fixed
+
+    return Etilde.conj() #TODO: Not sure why the conj is necessary
+
+
 def sumLeft(AL, h, tol=1e-8):
     D, d, _ = AL.shape
     m = len(h.shape) // 2
