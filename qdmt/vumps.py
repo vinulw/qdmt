@@ -192,6 +192,30 @@ def rescaledHnMixed(h, Ac, Ar):
     hTilde = h - e * I
     return hTilde
 
+def update_C(hTilde, Al, Ac, Ar, C, Lh, Rh, tol=1e-5):
+    D = Al.shape[0]
+    def CMapOp(C_mat):
+        C_map =  construct_CMap(Al, Ar, hTilde, Lh, Rh)
+        return (C_map @ C_mat.reshape(-1)).flatten()
+
+    COp = LinearOperator((D**2, D**2), matvec=CMapOp)
+    C_prime = eigs(COp, k=1, which='SR', v0=C.flatten(),
+                   ncv=None, maxiter=None, tol=tol)[1]
+
+    return C_prime.reshape(D, D)
+
+def update_Ac(hTilde, Al, Ac, Ar, C, Lh, Rh, tol=1e-5):
+    D, d, _ = Al.shape
+    def AcMapOp(AC):
+        AC_map = construct_AcMap(Al, Ar, hTilde, Lh, Rh)
+
+        return AC_map @ AC.reshape(-1)
+
+    AC_Op = LinearOperator((d * D**2, d * D**2), matvec=AcMapOp)
+    AC_prime = (eigs(AC_Op, k=1, which='SR', v0=Ac.flatten(),
+            ncv=None, maxiter=None, tol=tol)[1]).reshape(D, d, D)
+    return AC_prime
+
 def gs_vumps(h, D, d, tol=1e-5, maxiter=100, strategy='polar', A0=None):
     '''
     Perform vumps to optimise local hamiltonian h.

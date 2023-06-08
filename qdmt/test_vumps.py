@@ -135,7 +135,6 @@ def test_AcMap():
     H = Hamiltonian({'ZZ':-1, 'X':0.2}).to_matrix()
     H = H.reshape(2, 2, 2, 2)
 
-    print('Rescaled')
     htilde = rescaledHnMixed(H, Ac, Ar)
     tol = 1e-5
 
@@ -188,3 +187,33 @@ def test_CMap():
     correct = H_C(htilde, Al, Ar, Lh, Rh, v)
 
     assert np.allclose(mine, correct.reshape(-1))
+
+def test_updateAcC():
+    from vumps import sumLeft, sumRight, update_Ac, update_C
+    from vumpt_tutorial import calcNewCenter
+
+    # Setup
+    d = 2
+    D = 4
+    A = createMPS(D, d)
+    A = normalizeMPS(A)
+    Al, Ac, Ar, C = mixedCanonical(A)
+
+    H = Hamiltonian({'ZZ':-1, 'X':0.2}).to_matrix()
+    H = H.reshape(2, 2, 2, 2)
+
+    htilde = rescaledHnMixed(H, Ac, Ar)
+    tol = 1e-5
+
+    Lh = sumLeft(Al, C, htilde, tol=tol).reshape(D, D)
+    Rh = sumRight(Ar, C, htilde, tol=tol).reshape(D, D)
+
+    # Compare updaed Ac
+    correctAc, correctC = calcNewCenter(htilde, Al, Ac, Ar, C, Lh, Rh, tol=tol)
+
+    myAc = update_Ac(htilde, Al, Ac, Ar, C, Lh, Rh, tol=tol)
+    myC = update_C(htilde, Al, Ac, Ar, C, Lh, Rh, tol=tol)
+
+    assert np.allclose(correctC, myC), 'C doesnt match'
+
+    assert np.allclose(correctAc, myAc), 'Ac doesnt match'
