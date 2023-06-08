@@ -7,7 +7,7 @@ from numpy.linalg import qr
 from scipy.sparse.linalg import eigs
 from scipy.sparse.linalg import eigsh
 from scipy.linalg import polar
-from scipy.sparse.linalg import bicgstab, LinearOperator
+from scipy.sparse.linalg import bicgstab, LinearOperator, gmres
 from numpy.linalg import solve
 
 import matplotlib.pyplot as plt
@@ -388,10 +388,11 @@ def EtildeLeft(AL, l, r):
     # Put together with identity
     Etilde = np.eye(D**2) - transfer + fixed
 
-    return Etilde.conj() #TODO: Not sure why the conj is necessary
+    return Etilde #TODO: Not sure why the conj is necessary
 
 
-def sumLeft(AL, h, tol=1e-8):
+def sumLeft(AL, C, h, tol=1e-8):
+    tol = max(tol, 1e-14)
     D, d, _ = AL.shape
     m = len(h.shape) // 2
 
@@ -413,23 +414,19 @@ def sumLeft(AL, h, tol=1e-8):
     tensors = [*[AL] * m, h, *[AL.conj()]*m]
 
     Hl = ncon(tensors, edges)
+    # To be used in Ax = b solver
+    b = Hl.reshape(D**2).conj()
 
-    # Construct reduced transfer matrix
-    ELL = ncon([AL, AL.conj()], ((-1, 1, -3), (-2, 1, -4)))
-    ELL = ELL.reshape(D*D, D*D)
-    U, S, V = la.svd(ELL)
-    S[0] = 0 # Projecting out leading order term
-    E_tilde = U @ np.diag(S) @ V
+    l = np.eye(D).reshape(-1)
+    r = (C @ C.conj().T).reshape(-1)
+    Etilde = EtildeLeft(AL, l, r)
 
-    # Setting up system of linear eq to solve for Lh
-    E_psuedo = np.eye(D**2)  - E_tilde
-    E_psuedoL = E_psuedo.conj().T
-    Hl_dag = Hl.reshape(-1).conj()
-    # Suggested bicgstab in literature but solve works fast + more accurately for now
-    # L, exitcode = bicgstab(E_psuedoL, Hl_dag, atol=1e-7)
-    # print(exitcode)
-    L = solve(E_psuedoL, Hl_dag)
-    Lh = L.conj().reshape(D, D)
+    A_ = Etilde.conj().T # So that Ax = b
+    mvec = lambda v: A_ @ v
+    A = LinearOperator((D**2, D**2), matvec=mvec)
+
+
+    Lh = gmres(A, b, tol=tol)[0]
 
     return Lh
 

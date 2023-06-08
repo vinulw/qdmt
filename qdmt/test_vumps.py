@@ -60,7 +60,29 @@ def test_EtildeLeft():
     vCorrect = EtildeLeft(Al, l, r, v)
 
     Etildemine = EtildeLeft_mine(Al, l.reshape(D**2), r.reshape(D**2))
-    vMine = v @ Etildemine
+    vMine = Etildemine.conj().T @ v
 
     assert np.allclose(vMine, vCorrect)
 
+def test_sumLeft():
+    from vumps import sumLeft
+    from vumpt_tutorial import LhMixed
+
+    # Setup
+    d = 2
+    D = 4
+    A = createMPS(D, d)
+    A = normalizeMPS(A)
+    Al, Ac, Ar, C = mixedCanonical(A)
+
+    H = Hamiltonian({'ZZ':-1, 'X':0.2}).to_matrix()
+    H = H.reshape(2, 2, 2, 2)
+
+    htilde = rescaledHnMixed(H, Ac, Ar)
+    tol = 1e-5
+
+    # Compare Lh
+    Lh_mine = sumLeft(Al, C, htilde, tol=tol)
+    Lh_exact = LhMixed(htilde, Al, C, tol=tol)
+
+    assert np.allclose(Lh_mine, Lh_exact.reshape(-1))

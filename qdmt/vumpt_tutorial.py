@@ -115,6 +115,7 @@ def LhMixed(hTilde, Al, C, tol=1e-5):
     # construct b
     b = ncon((Al, Al, np.conj(Al), np.conj(Al), hTilde), ([4, 2, 1], [1, 3, -2], [4, 5, 6], [6, 7, -1], [2, 3, 5, 7]))
 
+
     # solve Ax = b for x
     A = LinearOperator((D ** 2, D ** 2), matvec=partial(EtildeLeft, Al, l, r))
     Lh = gmres(A, b.reshape(D ** 2), tol=tol)[0]
