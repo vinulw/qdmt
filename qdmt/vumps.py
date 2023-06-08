@@ -156,7 +156,6 @@ def expValNMixed(O, Ac, Ar):
     contrO = [list(range(2, 4*n+1, 2))]
 
     contr = contrTop + contrBot + contrO
-    print(contr)
 
     # TODO: Set order to be more efficient
     return ncon(tensors, contr)
@@ -430,7 +429,7 @@ def sumLeft(AL, C, h, tol=1e-8):
 
     return Lh
 
-def sumRight(AR, h, tol=1e-8):
+def sumRight(AR, C, h, tol=1e-8):
     D, d, _ = AR.shape
     m = len(h.shape) // 2
 
@@ -454,21 +453,17 @@ def sumRight(AR, h, tol=1e-8):
     tensors = [*[AR]*m, h, *[AR.conj()]*m]
     Hr = ncon(tensors, edges)
     # To be used in Ax = b solver
-    b = Hr.reshape(D**2).conj()
+    b = Hr.reshape(D**2)
 
-    # Set up transfer matrix
-    ELL = ncon([AR, AR.conj()], ((-1, 1, -3), (-2, 1, -4)))
-    ELL = ELL.reshape(D*D, D*D)
+    l = (C.conj().T @ C).reshape(-1)
+    r = np.eye(D).reshape(-1)
+    Et = Etilde(AR, l, r)
 
-    U, S, V = la.svd(ELL)
-    S[0] = 0 # Projecting out leading order term
-    E_tilde = U @ np.diag(S) @ V
+    A_ = Et # So that Ax = b
+    mvec = lambda v: A_ @ v
+    A = LinearOperator((D**2, D**2), matvec=mvec)
 
-    # Setting up system of linear eq to solve for Lh
-    E_psuedo = np.eye(D**2)  - E_tilde
-    R = solve(E_psuedo, Hr.reshape(-1)) # Replace with bicstag for large D
-    Rh = R.reshape(D, D)
-
+    Rh = gmres(A, b, tol=tol)[0]
     return Rh
 
 def construct_CMap(Al, Ar, h, LH, RH, D):

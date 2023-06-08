@@ -95,3 +95,28 @@ def test_sumLeft():
     Lh_exact = LhMixed(htilde, Al, C, tol=tol)
 
     assert np.allclose(Lh_mine, Lh_exact.reshape(-1))
+
+
+def test_sumRight():
+    from vumps import sumRight
+    from vumpt_tutorial import RhMixed
+
+    # Setup
+    d = 2
+    D = 4
+    A = createMPS(D, d)
+    A = normalizeMPS(A)
+    Al, Ac, Ar, C = mixedCanonical(A)
+
+    H = Hamiltonian({'ZZ':-1, 'X':0.2}).to_matrix()
+    H = H.reshape(2, 2, 2, 2)
+
+    print('Rescaled')
+    htilde = rescaledHnMixed(H, Ac, Ar)
+    tol = 1e-5
+
+    # Compare Lh
+    Rh_mine = sumRight(Ar, C, htilde, tol=tol)
+    Rh_exact = RhMixed(htilde, Ar, C, tol=tol)
+
+    assert np.allclose(Rh_mine, Rh_exact.reshape(-1))
