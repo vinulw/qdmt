@@ -132,6 +132,39 @@ def is_eigenvector(M, v, left=False):
     return np.allclose(λs, λs[0]), λs[0]
 
 
+def largest_evec_left(E, l0 = None, eval=False):
+    '''
+    Find leading eigenvector v of E such that vE = λv
+    '''
+    Eh = E.conj().T
+    if l0 is not None:
+        l0 = l0.conj().transpose()
+
+    w, v = eigs(Eh, k=1, which='LM')
+
+    e = v[:, 0]
+    e = e.conj().transpose()
+
+    if eval:
+        return e, w[0]
+
+    return e
+
+
+def largest_evec_right(E, r0 = None, eval=False):
+    '''
+    Find leading eigenvector v of E such that Ev = λv
+    '''
+    w, v = eigs(E, k=1, which='LM', v0=r0)
+
+    e = v[:, 0]
+
+    if eval:
+        return e, w[0]
+
+    return e
+
+
 if __name__=="__main__":
 
     D = 8
