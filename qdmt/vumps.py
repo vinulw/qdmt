@@ -466,7 +466,8 @@ def sumRight(AR, C, h, tol=1e-8):
     Rh = gmres(A, b, tol=tol)[0]
     return Rh
 
-def construct_CMap(Al, Ar, h, LH, RH, D):
+def construct_CMap(Al, Ar, h, LH, RH):
+    D = Al.shape[0]
     C_map = np.zeros((D**2, D**2), dtype=complex)
     n_sites = len(h.shape) // 2
 
@@ -520,8 +521,9 @@ def construct_CMap(Al, Ar, h, LH, RH, D):
         C_map += C_map_
 
     I = np.eye(D, dtype=complex)
-    C_map += ncon([LH, I], ((-1, -3), (-2, -4))).reshape(D**2, D**2)
-    C_map += ncon([I, RH], ((-1, -3), (-2, -4))).reshape(D**2, D**2)
+    term2 = ncon([LH, I], ((-1, -3), (-2, -4))).reshape(D**2, D**2)
+    term3 = ncon([I, RH], ((-1, -3), (-4, -2))).reshape(D**2, D**2)
+    C_map += term2 + term3
 
     return C_map
 
@@ -595,7 +597,6 @@ def construct_AcMap(AL, AR, h, LH, RH):
         nI = len(I_contr)
 
         contr = Al_contr + Al_dag_contr + [h_contr_] + Ar_contr + Ar_dag_contr + I_contr
-        print(contr)
         tensors = [AL]*nL + [AL.conj()]*nL + [h] + [AR]*nR + [AR.conj()]*nR + [I]*nI
         term_sites.append(ncon(tensors, contr).reshape(dim, dim))
 

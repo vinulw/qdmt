@@ -154,3 +154,37 @@ def test_AcMap():
     correct = H_Ac(htilde, Al, Ar, Lh, Rh, v)
 
     assert np.allclose(correct.reshape(-1), mine)
+
+def test_CMap():
+    from vumps import sumLeft, sumRight, construct_CMap
+
+    from vumpt_tutorial import H_C
+    # Setup
+    d = 2
+    D = 4
+    A = createMPS(D, d)
+    A = normalizeMPS(A)
+    Al, Ac, Ar, C = mixedCanonical(A)
+
+    H = Hamiltonian({'ZZ':-1, 'X':0.2}).to_matrix()
+    H = H.reshape(2, 2, 2, 2)
+
+    print('Rescaled')
+    htilde = rescaledHnMixed(H, Ac, Ar)
+    tol = 1e-5
+
+    Lh = sumLeft(Al, C, htilde, tol=tol)
+    Rh = sumRight(Ar, C, htilde, tol=tol)
+
+    v = np.random.rand(D**2) + 1j*np.random.rand(D**2)
+
+    # Compare H_Ac
+    Lh = Lh.reshape(D, D)
+    Rh = Rh.reshape(D, D)
+    myH_C = construct_CMap(Al, Ar, htilde, Lh, Rh)
+    mine = myH_C @ v
+
+    v = v.reshape(D, D)
+    correct = H_C(htilde, Al, Ar, Lh, Rh, v)
+
+    assert np.allclose(mine, correct.reshape(-1))
