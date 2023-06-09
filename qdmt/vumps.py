@@ -110,7 +110,9 @@ def rescaledHnMixed(h, Ac, Ar):
     return hTilde
 
 def update_C(hTilde, Al, Ac, Ar, C, Lh, Rh, tol=1e-5):
+    tol = max(tol, 1e-14)
     D = Al.shape[0]
+
     def CMapOp(C_mat):
         C_map =  construct_CMap(Al, Ar, hTilde, Lh, Rh)
         return (C_map @ C_mat.reshape(-1)).flatten()
@@ -122,7 +124,9 @@ def update_C(hTilde, Al, Ac, Ar, C, Lh, Rh, tol=1e-5):
     return C_prime.reshape(D, D)
 
 def update_Ac(hTilde, Al, Ac, Ar, C, Lh, Rh, tol=1e-5):
+    tol = max(tol, 1e-14)
     D, d, _ = Al.shape
+
     def AcMapOp(AC):
         AC_map = construct_AcMap(Al, Ar, hTilde, Lh, Rh)
 
@@ -389,6 +393,21 @@ def minAcCPolar(AcTilde, CTilde, tol=1e-5):
     Ac = ncon([Al, C], ((-1, -2, 1), (1, -3)))
 
     return Al, Ac, Ar, C
+
+def errorL(hTilde, Al, Ac, Ar, C, Lh, Rh):
+    """
+    Calculate ϵL to check for convergence.
+    """
+    D, d, _ = Al.shape
+    AcTilde = construct_AcMap(Al, Ar, hTilde, Lh, Rh) @ Ac.reshape(-1)
+    AcTilde = AcTilde.reshape(D, d, D)
+
+    CTilde = construct_CMap(Al, Ar, hTilde, Lh, Rh) @ C.reshape(-1)
+    CTilde = CTilde.reshape(D, D)
+
+    AlCTilde = ncon((Al, CTilde), ((-1, -2, 1), (1, -3)))
+
+    return np.linalg.norm(AcTilde - AlCTilde)
 
 
 def gs_vumps(h, D, d, tol=1e-5, maxiter=100, strategy='polar', A0=None):

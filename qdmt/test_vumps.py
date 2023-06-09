@@ -250,3 +250,30 @@ def test_minAcC():
 
     ARAR = ncon([mAr, mAr.conj()], ((-1, 1, 2), (-2, 1, 2)))
     assert np.allclose(I, ARAR)
+
+
+def test_errorL():
+    from vumps import sumLeft, sumRight, errorL
+    from vumpt_tutorial import gradientNorm
+
+    # Setup
+    d = 2
+    D = 4
+    A = createMPS(D, d)
+    A = normalizeMPS(A)
+    Al, Ac, Ar, C = mixedCanonical(A)
+
+    H = Hamiltonian({'ZZ':-1, 'X':0.2}).to_matrix()
+    H = H.reshape(2, 2, 2, 2)
+
+    hTilde = rescaledHnMixed(H, Ac, Ar)
+    tol = 1e-5
+
+    Lh = sumLeft(Al, C, hTilde, tol=tol).reshape(D, D)
+    Rh = sumRight(Ar, C, hTilde, tol=tol).reshape(D, D)
+
+    # Compare convergence calculator
+    correctError = gradientNorm(hTilde, Al, Ac, Ar, C, Lh, Rh)
+    myError = errorL(hTilde, Al, Ac, Ar, C, Lh, Rh)
+
+    assert np.allclose(correctError, myError)
