@@ -409,6 +409,17 @@ def errorL(hTilde, Al, Ac, Ar, C, Lh, Rh):
 
     return np.linalg.norm(AcTilde - AlCTilde)
 
+def tensorOperator(O, d=2):
+    '''
+    Reshape operator O to a tensor with local space of size d.
+    '''
+    m = np.emath.logn(d, O.shape[0])
+    assert np.mod(m, 1) == 0, "d does not match h shape"
+    m = int(m)
+    OTen = O.reshape(*[d] * 2*m)
+
+    return OTen
+
 
 def gs_vumps(h, D, d, tol=1e-5, maxiter=100, strategy='polar', A0=None):
     '''
