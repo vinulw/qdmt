@@ -471,13 +471,28 @@ def vumps(h, D, d, A0=None, tol=1e-5, tolFactor=1e-1, maxiter=100, verbose=False
 
 if __name__ == "__main__":
     d = 2
-    D = 4
+    D = 2
 
     A = createMPS(D, d)
     A = normalizeMPS(A)
 
-    H = Hamiltonian({'ZZ':-1, 'X':0.2}).to_matrix()
-    h = tensorOperator(H, d=d)
+    n = 16
+    g_range = np.linspace(0.0, 1.6, n)
+    Es = np.zeros(n)
 
-    vumps(h, D, d, A0=A, tol=1e-5, tolFactor=1e-2, verbose=True)
+    for i, g in tqdm(enumerate(g_range), total=n):
+        H = Hamiltonian({'ZZ':-1, 'X':g}).to_matrix()
+        h = tensorOperator(H, d=d)
+
+        Al, Ac, Ar, C = vumps(h, D, d, A0=A, tol=1e-8, tolFactor=1e-2, verbose=False)
+        E = np.real(expValNMixed(h, Ac, Ar))
+
+        Es[i] = E
+
+    np.save(f'gstate_ising2_D{D}.npy', Es)
+
+    plt.title('Ground state optimisation')
+    plt.plot(g_range, Es, label='VUMPS')
+    plt.legend()
+    plt.show()
 

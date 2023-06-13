@@ -2,6 +2,9 @@ import numpy as np
 from functools import reduce
 from itertools import product
 from numpy import kron, trace, eye
+from tqdm import tqdm
+import scipy.integrate as integrate
+import matplotlib.pyplot as plt
 
 Sx = np.array([[0, 1],
                [1, 0]], dtype=complex)
@@ -44,3 +47,23 @@ class Hamiltonian:
         del self.strings['II']
         return self
 
+if __name__=="__main__":
+    g = 0.2
+    # H = Hamiltonian({'ZZ':-1, 'X':g}).to_matrix()
+
+    def energySpectrum(k, g):
+        return 2*np.sqrt(1+g**2-2*g*np.cos(k))
+
+    # I = integrate.quad(lambda x: energySpectrum(x, g), 0, 2*np.pi)
+    # print(I)
+
+    n = 16
+    g_range = np.linspace(0.0, 1.6, n)
+    Es = np.zeros(n)
+    for i, g in tqdm(enumerate(g_range), total=n):
+        E = energySpectrum(1, g)
+        Es[i] = np.real(E)
+
+    plt.title('Ground state optimisation, exact')
+    plt.plot(g_range, Es, label='VUMPS')
+    plt.show()
