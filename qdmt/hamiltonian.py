@@ -44,3 +44,25 @@ class Hamiltonian:
         del self.strings['II']
         return self
 
+
+def TransverseIsing(J, g, n):
+    '''
+    Generate an n qubit ising hamiltonian.
+    '''
+
+    h = np.zeros((2**n, 2**n)) + 0j
+
+    # Add ZZ terms
+    for i in range(n-1):
+        pString = ['I'] * n
+        pString[i] = 'Z'
+        pString[i+1] = 'Z'
+        h += J * reduce(kron, [S[j] for j in pString])
+
+    # Add TF term
+    for i in range(n):
+        pString = ['I'] * n
+        pString[i] = 'X'
+        h += g / 2. * reduce(kron, [S[j] for j in pString])
+
+    return h
