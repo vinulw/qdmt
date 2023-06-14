@@ -250,3 +250,49 @@ def test_minAcC():
 
     ARAR = ncon([mAr, mAr.conj()], ((-1, 1, 2), (-2, 1, 2)))
     assert np.allclose(I, ARAR)
+
+
+def test_errorL():
+    from vumps import sumLeft, sumRight, errorL
+    from vumpt_tutorial import gradientNorm
+
+    # Setup
+    d = 2
+    D = 4
+    A = createMPS(D, d)
+    A = normalizeMPS(A)
+    Al, Ac, Ar, C = mixedCanonical(A)
+
+    H = Hamiltonian({'ZZ':-1, 'X':0.2}).to_matrix()
+    H = H.reshape(2, 2, 2, 2)
+
+    hTilde = rescaledHnMixed(H, Ac, Ar)
+    tol = 1e-5
+
+    Lh = sumLeft(Al, C, hTilde, tol=tol).reshape(D, D)
+    Rh = sumRight(Ar, C, hTilde, tol=tol).reshape(D, D)
+
+    # Compare convergence calculator
+    correctError = gradientNorm(hTilde, Al, Ac, Ar, C, Lh, Rh)
+    myError = errorL(hTilde, Al, Ac, Ar, C, Lh, Rh)
+
+    assert np.allclose(correctError, myError)
+
+def test_tensorOperator():
+    from vumps import tensorOperator
+    d = 2
+    H = Hamiltonian({'ZZ':-1, 'X':0.2}).to_matrix()
+
+    h_correct = H.reshape(d, d, d, d)
+    h_func = tensorOperator(H, d)
+
+    assert np.allclose(h_correct.shape, h_func.shape)
+    assert np.allclose(h_correct.reshape(-1), h_func.reshape(-1))
+
+    H2 = np.random.rand(d**4, d**4) + 1j*np.random.rand(d**4, d**4)
+
+    h_correct = H2.reshape(*[d]*8)
+    h_func = tensorOperator(H2, d)
+
+    assert np.allclose(h_correct.shape, h_func.shape)
+    assert np.allclose(h_correct.reshape(-1), h_func.reshape(-1))

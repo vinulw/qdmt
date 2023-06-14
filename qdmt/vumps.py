@@ -110,7 +110,9 @@ def rescaledHnMixed(h, Ac, Ar):
     return hTilde
 
 def update_C(hTilde, Al, Ac, Ar, C, Lh, Rh, tol=1e-5):
+    tol = max(tol, 1e-14)
     D = Al.shape[0]
+
     def CMapOp(C_mat):
         C_map =  construct_CMap(Al, Ar, hTilde, Lh, Rh)
         return (C_map @ C_mat.reshape(-1)).flatten()
@@ -122,7 +124,9 @@ def update_C(hTilde, Al, Ac, Ar, C, Lh, Rh, tol=1e-5):
     return C_prime.reshape(D, D)
 
 def update_Ac(hTilde, Al, Ac, Ar, C, Lh, Rh, tol=1e-5):
+    tol = max(tol, 1e-14)
     D, d, _ = Al.shape
+
     def AcMapOp(AC):
         AC_map = construct_AcMap(Al, Ar, hTilde, Lh, Rh)
 
@@ -390,8 +394,34 @@ def minAcCPolar(AcTilde, CTilde, tol=1e-5):
 
     return Al, Ac, Ar, C
 
+def errorL(hTilde, Al, Ac, Ar, C, Lh, Rh):
+    """
+    Calculate ϵL to check for convergence.
+    """
+    D, d, _ = Al.shape
+    AcTilde = construct_AcMap(Al, Ar, hTilde, Lh, Rh) @ Ac.reshape(-1)
+    AcTilde = AcTilde.reshape(D, d, D)
 
-def gs_vumps(h, D, d, tol=1e-5, maxiter=100, strategy='polar', A0=None):
+    CTilde = construct_CMap(Al, Ar, hTilde, Lh, Rh) @ C.reshape(-1)
+    CTilde = CTilde.reshape(D, D)
+
+    AlCTilde = ncon((Al, CTilde), ((-1, -2, 1), (1, -3)))
+
+    return np.linalg.norm(AcTilde - AlCTilde)
+
+def tensorOperator(O, d=2):
+    '''
+    Reshape operator O to a tensor with local space of size d.
+    '''
+    m = np.emath.logn(d, O.shape[0])
+    assert np.mod(m, 1) == 0, "d does not match h shape"
+    m = int(m)
+    OTen = O.reshape(*[d] * 2*m)
+
+    return OTen
+
+
+def vumps(h, D, d, A0=None, tol=1e-5, tolFactor=1e-1, maxiter=100, verbose=False, callback=None):
     '''
     Perform vumps to optimise local hamiltonian h.
     '''
@@ -400,197 +430,69 @@ def gs_vumps(h, D, d, tol=1e-5, maxiter=100, strategy='polar', A0=None):
         A0 = createMPS(D, d)
         A0 = normalizeMPS(A0)
 
-    AL, _, AR, C = mixedCanonical(A0)
-    AC = ncon([AL, C], [[-1, -2, 1], [1, -3]])
+    Al, Ac, Ar, C = mixedCanonical(A0)
 
-    ev_tol = 1e-12 # Should be an optional
-    h0 = h.copy()
-
-    # Reshape the h (d**m, d**m ) -> (d, d, d, ..., d)
-    m = np.emath.logn(d, h0.shape[0])
-    assert np.mod(m, 1) == 0, "d does not match h shape"
-    m = int(m)
-    h0_ten = h0.reshape(*[d] * 2*m)
-
-    print('h0_ten shape: ', h0_ten.shape)
-
-    δ = 1
+    delta = tol*1e-2
     count = 0
-    energies = []
-    error_δs = []
-    error_ϵLs = []
-    error_ϵRs = []
 
-    if strategy == 'svd':
-        minAcC = minAcC_svd
-    else:
-        minAcC = minAcC_polar
+    while maxiter > count:
+        count += 1
 
-    while δ > tol and maxiter > count:
-        e, _, _ = evaluateEnergy(AL, AR, C, h0)
-        energies.append(e)
-        print(f'Current energy : {e}')
+        # Rescale Hamiltonian
+        hTilde = rescaledHnMixed(h, Ac, Ar)
 
-        # Calculate the energy shifts (Left)
-        h0_edge = list(range(1, 2*m+1))
-        curr_i = 2*m+1
-        edges_A = [[curr_i, m+1, curr_i + 1]]
-        edges_A_dag = [[curr_i, 1, curr_i + 2]]
-        curr_i = curr_i + 1
+        # Calculate the environments
+        Lh = sumLeft(Al, C,  hTilde, tol=tolFactor*delta).reshape(D, D)
+        Rh = sumRight(Ar, C, hTilde, tol=tolFactor*delta).reshape(D, D)
 
-        for i in range(1, m):
-            edges_A.append([curr_i, m+1+i, curr_i+2])
-            edges_A_dag.append([curr_i+1, 1+i, curr_i+3])
-            curr_i += 2
+        # Update Ac
+        AcTilde = update_Ac(hTilde, Al, Ac, Ar, C, Lh, Rh, tol=tolFactor*delta)
+        # Update C
+        CTilde = update_C(hTilde, Al, Ac, Ar, C, Lh, Rh, tol=tolFactor*delta)
 
-        edges = [*edges_A, h0_edge, *edges_A_dag, [curr_i, curr_i+2], [curr_i+1, curr_i+2]]
-        tensors = [*[AL] * m, h0_ten, *[AL.conj()]*m, C, C.conj()]
-        eL = ncon(tensors, edges)
+        # Find update tensors
+        Al, Ac, Ar, C = minAcCPolar(AcTilde, CTilde, tol=delta*tolFactor**2)
 
-        # Calculate the energy shift right
-        curr_i = 2*m+1
-        edges = [[curr_i, curr_i+1], [curr_i, curr_i+2]]
-        curr_i += 1
-        edges_A = [[curr_i, m+1, curr_i + 2]]
-        edges_A_dag = [[curr_i+1, 1, curr_i + 3]]
-        curr_i = curr_i + 2
+        # Calculate errorL
+        delta = errorL(hTilde, Al, Ac, Ar, C, Lh, Rh)
+        if verbose:
+            E = np.real(expValNMixed(h, Ac, Ar))
+            print(f'iteration: {count}')
+            print(f'   energy: {E}')
+            print(f'   errorL: {delta}')
 
-        for i in range(1, m):
-            edges_A.append([curr_i, m+1+i, curr_i+2])
-            edges_A_dag.append([curr_i+1, i+1, curr_i+3])
-            curr_i += 2
+        if callback is not None:
+            callback(count, Al, Ac, Ar, C, hTilde, Lh, Rh)
+        if delta < tol:
+            break
 
-        edges_A_dag[-1][-1] = curr_i
-
-        edges = edges + edges_A + [h0_edge] + edges_A_dag
-        tensors = [C, C.conj(), *[AR]*m, h0_ten, *[AR.conj()]*m]
-        eR = ncon(tensors, edges)
-
-        h_shifted = (h - e*np.eye(d**m)).reshape(*[d]*2*m)
-        h_shiftedL = (h - eL*np.eye(d**m)).reshape(*[d]*2*m)
-        h_shiftedR = (h - eR*np.eye(d**m)).reshape(*[d]*2*m)
-
-        LH = sumLeft(AL, h_shiftedL)
-        RH = sumRight(AR, h_shiftedR)
-
-        # Make them symmetric (should not be necessary)
-        LH = 0.5*(LH + LH.T)
-        RH = 0.5*(RH + RH.T)
-
-        # Create identity maps
-        I = np.eye(D)
-        Id = np.eye(d)
-
-        def CMapOp(C_mat):
-            C_map =  construct_CMap(AL, AR, h0_ten, LH, RH, D)
-            return (C_map @ C_mat.reshape(-1)).flatten()
-
-        COp = LinearOperator((D**2, D**2), matvec=CMapOp, dtype=np.float64)
-        C_prime = eigsh(COp, k=1, which='SA', v0=C.flatten(),
-                       ncv=None, maxiter=None, tol=ev_tol)[1]
-
-
-        # Convert to diagonal gauge for stability
-        C_prime = C_prime.reshape(D, D)
-        ut, C_prime, vt = la.svd(C_prime)
-        C_prime = np.diag(C_prime)
-        AL = ncon([ut.conj().T, AL, ut], [[-1, 1], [1, -2, 2], [2, -3]])
-        AR = ncon([vt, AR, vt.conj().T], [[-1, 1], [1, -2, 2], [2, -3]])
-
-        LH = ut.conj().T @ LH @ ut
-        RH = vt @ RH @ vt.conj().T
-
-        # Construct Ac′
-        dim = d*D**2
-
-        def AcMapOp(AC):
-            AC_map = construct_AcMap(AL, AR, h0_ten, d, D, LH, RH)
-
-            return AC_map @ AC.reshape(-1)
-
-        print('Building AcMap')
-        AC_Op = LinearOperator((d * D**2, d * D**2), matvec=AcMapOp, dtype=np.float64)
-        AC_prime = (eigsh(AC_Op, k=1, which='SA', v0=AC.flatten(),
-                ncv=None, maxiter=None, tol=ev_tol)[1]).reshape(D, d, D)
-
-        #AL, AR, ϵL, ϵR = minAcC(AC_prime, C_prime, errors=True)
-
-        if strategy == 'polar':
-          AL = (polar(AC_prime.reshape(D * d, D))[0]).reshape(D, d, D)
-          AR = (polar(AC_prime.reshape(D, d * D), side='left')[0]
-                ).reshape(D, d, D)
-        elif strategy == 'svd':
-          ut, _, vt = la.svd(AC.reshape(D * d, D) @ C_prime, full_matrices=False)
-          AL = (ut @ vt).reshape(D, d, D)
-          ut, _, vt = la.svd(C_prime @ AC.reshape(m, d * m), full_matrices=False)
-          AR = (ut @ vt).reshape(D, d, D)
-
-        ALC = ncon([AL, C_prime], ((-1, -2, 1), (1, -3)))
-        ϵL = np.linalg.norm(ALC - AC)
-        CAR = ncon([C_prime, AR], ((-1, 1), (1, -2,  -3)))
-        ϵR = np.linalg.norm(CAR - AC)
-
-        C = C_prime.copy()
-        AC = AC_prime.copy()
-
-
-        # Check convergence
-        # AC_map = AC_map.reshape(D, d, D, D, d, D)
-        # C_map = C_map.reshape(D, D, D, D)
-        # H_AC = ncon([AC_map, AC], ((1, 2, 3, -1, -2, -3), (1, 2, 3)))
-        # H_C = ncon([C_map, C], ((1, 2, -1, -2), (1, 2)))
-        # AL_HC = ncon([AL, H_C], ((-1, -2, 1), (1, -3)))
-
-        δ = 1 # np.linalg.norm(H_AC - AL_HC)
-        count += 1 # iteratre counter for maxiter
-
-        error_δs.append(δ)
-        error_ϵLs.append(ϵL)
-        error_ϵRs.append(ϵR)
-
-        print(f'Energy after opt: {e}')
-        print('Errors: ')
-        print(f'   δ: {δ}')
-        print(f'   ϵL: {ϵL}')
-        print(f'   ϵR: {ϵR}')
-
-        e, _, _ = evaluateEnergy(AL, AR, C, h) # Calculate the final energy
-        energies.append(e)
-
-    plt.figure()
-    plt.plot(error_δs)
-    plt.title('Error δ')
-
-    plt.figure()
-    plt.plot(error_ϵLs, label='ϵL')
-    plt.plot(error_ϵRs, label='ϵR')
-    plt.legend()
-    plt.title('Error ϵ{L/R}')
-
-    e = evaluateEnergy(AL, AR, C, h) # Calculate the final energy
-    return AL, AR, C, energies
+    return Al, Ac, Ar, C
 
 
 if __name__ == "__main__":
     d = 2
-    D = 4
-    A, AL, AR, C = random_mixed_gauge(D, d, normalise=True)
+    D = 2
 
-    H = Hamiltonian({'ZZ':-1, 'X':0.2}).to_matrix()
+    A = createMPS(D, d)
+    A = normalizeMPS(A)
 
-    H2 = np.kron(H, H)
+    n = 16
+    g_range = np.linspace(0.0, 1.6, n)
+    Es = np.zeros(n)
 
-    print(f'Single copy energy: {energy}')
+    for i, g in tqdm(enumerate(g_range), total=n):
+        H = Hamiltonian({'ZZ':-1, 'X':g}).to_matrix()
+        h = tensorOperator(H, d=d)
 
-    energy2 = evaluateEnergy(AL, AR, C, H2)
-    print(f'Two copy energy: {energy2}')
+        Al, Ac, Ar, C = vumps(h, D, d, A0=A, tol=1e-8, tolFactor=1e-2, verbose=False)
+        E = np.real(expValNMixed(h, Ac, Ar))
 
-    print('Trying vumps...')
+        Es[i] = E
 
-    _ , _, _, energies = gs_vumps(H2, 4, 2, maxiter=100, strategy='polar')
-    print(energies)
-    plt.figure()
-    plt.plot(energies, '--')
-    plt.title('Energies')
+    np.save(f'gstate_ising2_D{D}.npy', Es)
+
+    plt.title('Ground state optimisation')
+    plt.plot(g_range, Es, label='VUMPS')
+    plt.legend()
     plt.show()
 
