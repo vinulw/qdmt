@@ -2,6 +2,7 @@ import numpy as np
 from numpy import linalg as la
 from ncon import ncon
 from copy import copy
+import os
 
 from numpy.linalg import qr
 from scipy.sparse.linalg import eigs
@@ -12,7 +13,7 @@ from numpy.linalg import solve
 
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-from hamiltonian import Hamiltonian
+from hamiltonian import Hamiltonian, TransverseIsing
 
 from vumpt_tools import createMPS, normalizeMPS, mixedCanonical
 
@@ -477,22 +478,36 @@ if __name__ == "__main__":
     A = normalizeMPS(A)
 
     n = 16
+    nQb = 4
     g_range = np.linspace(0.0, 1.6, n)
     Es = np.zeros(n)
 
-    for i, g in tqdm(enumerate(g_range), total=n):
-        H = Hamiltonian({'ZZ':-1, 'X':g}).to_matrix()
-        h = tensorOperator(H, d=d)
+    fname = f'gstate_ising2_D{D}_qb{nQb}.npy'
+    skip = False
+    if os.path.exists(fname):
+        Es = np.load(f'gstate_ising2_D{D}_qb{nQb}.npy')
+        print(f'File found: {fname}\nSkipping...')
+        skip = True
 
-        Al, Ac, Ar, C = vumps(h, D, d, A0=A, tol=1e-8, tolFactor=1e-2, verbose=False)
-        E = np.real(expValNMixed(h, Ac, Ar))
+    if not skip:
+        for i, g in tqdm(enumerate(g_range), total=n):
+            # H = Hamiltonian({'ZZ':-1, 'X':g}).to_matrix()
+            H = TransverseIsing(-1, g, nQb)
+            h = tensorOperator(H, d=d)
 
-        Es[i] = E
+            Al, Ac, Ar, C = vumps(h, D, d, A0=A, tol=1e-8, tolFactor=1e-2, verbose=False)
+            E = np.real(expValNMixed(h, Ac, Ar))
 
-    np.save(f'gstate_ising2_D{D}.npy', Es)
+            Es[i] = E
 
-    plt.title('Ground state optimisation')
+        np.save(fname, Es)
+
+    plt.rcParams['text.usetex'] = True
+    plt.rcParams.update({'font.size': 14})
+    plt.title(f'Ground state optimisation, nQB:{nQb}, D:{D}')
+    plt.ylabel(r'$<\psi|h|\psi>$')
+    plt.xlabel('g')
     plt.plot(g_range, Es, label='VUMPS')
-    plt.legend()
+    # plt.legend()
     plt.show()
 
