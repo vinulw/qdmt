@@ -89,4 +89,3 @@ if __name__=="__main__":
     plt.title('Ground state optimisation, exact')
     plt.plot(g_range, Es, label='VUMPS')
     plt.show()
->>>>>>> ea492ef72ea8d1222905a81b264a118085c103bc
