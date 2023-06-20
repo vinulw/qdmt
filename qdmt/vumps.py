@@ -472,14 +472,15 @@ def vumps(h, D, d, A0=None, tol=1e-5, tolFactor=1e-1, maxiter=100, verbose=False
 
 if __name__ == "__main__":
     d = 2
-    D = 2
+    D = 8
+    save=True
 
     A = createMPS(D, d)
     A = normalizeMPS(A)
 
     n = 16
     nQb = 4
-    g_range = np.linspace(0.0, 1.6, n)
+    g_range = np.linspace(0.1, 1.7, n)
     Es = np.zeros(n)
 
     fname = f'gstate_ising2_D{D}_qb{nQb}.npy'
@@ -496,11 +497,15 @@ if __name__ == "__main__":
             h = tensorOperator(H, d=d)
 
             Al, Ac, Ar, C = vumps(h, D, d, A0=A, tol=1e-8, tolFactor=1e-2, verbose=False)
-            E = np.real(expValNMixed(h, Ac, Ar))
+
+            H2 = TransverseIsing(-1, g, 2)
+            h2 = tensorOperator(H2, d=d)
+            E = np.real(expValNMixed(h2, Ac, Ar))
 
             Es[i] = E
 
-        np.save(fname, Es)
+        if save:
+            np.save(fname, Es)
 
     plt.rcParams['text.usetex'] = True
     plt.rcParams.update({'font.size': 14})

@@ -3,7 +3,7 @@ from functools import reduce
 from itertools import product
 from numpy import kron, trace, eye
 from tqdm import tqdm
-import scipy.integrate as integrate
+from scipy.integrate import quad
 import matplotlib.pyplot as plt
 
 Sx = np.array([[0, 1],
@@ -69,22 +69,42 @@ def TransverseIsing(J, g, n):
 
     return h
 
+def exact_gs_energy(J, g):
+    """
+    Exact gs energy for TFIM in the thermodynamic limit.
+
+    For derivation see P. Pfeuty, The one- dimensional Ising model with
+    a transverse field, Annals of Physics 57, p. 79 (1970)
+
+    Ref: https://tenpy.readthedocs.io/en/latest/toycode_stubs/tfi_exact.html
+    """
+    g = -g # Match the two conventions used
+    def f(k, lambda_):
+        return np.sqrt(1 + lambda_**2 + 2 * lambda_ * np.cos(k))
+
+    E0_exact = -g / (J * 2. * np.pi) * quad(f, -np.pi, np.pi, args=(J / g, ))[0]
+    return E0_exact
+
+
 if __name__=="__main__":
-    g = 0.2
-    # H = Hamiltonian({'ZZ':-1, 'X':g}).to_matrix()
+    #J = -1
+    #n = 16
+    #g_range = np.linspace(0.1, 1.7, n)
+    #Es = np.zeros(n)
+    #for i, g in tqdm(enumerate(g_range), total=n):
+    #    E = exact_gs_energy(J, g)
+    #    Es[i] = np.real(E)
 
-    def energySpectrum(k, g):
-        return 2*np.sqrt(1+g**2-2*g*np.cos(k))
+    #print('Saving exact gs energy...')
+    #data = np.zeros((2, n))
+    #data[0] = g_range
+    #data[1] = Es
+    #header = 'g, energies'
+    #np.savetxt('exact_gs_energy.csv', data, delimiter=',')
 
-    # I = integrate.quad(lambda x: energySpectrum(x, g), 0, 2*np.pi)
-    # print(I)
+    print('Loading exact gs_energy...')
+    g_range, Es = np.loadtxt('exact_gs_energy.csv', delimiter=',')
 
-    n = 16
-    g_range = np.linspace(0.0, 1.6, n)
-    Es = np.zeros(n)
-    for i, g in tqdm(enumerate(g_range), total=n):
-        E = energySpectrum(1, g)
-        Es[i] = np.real(E)
 
     plt.title('Ground state optimisation, exact')
     plt.plot(g_range, Es, label='VUMPS')
