@@ -49,27 +49,28 @@ class Hamiltonian:
 
 def TransverseIsing(J, g, n):
     '''
-    Generate an n qubit ising hamiltonian.
+    Generate n qubit TFIM Hamiltonian.
     '''
 
-    hzz = np.zeros((2**n, 2**n)) + 0j
-    hx = np.zeros((2**n, 2**n)) + 0j
+    h = np.zeros((2**n, 2**n)) + 0j
 
-    # Add ZZ terms
     for i in range(n-1):
         pString = ['I'] * n
         pString[i] = 'Z'
         pString[i+1] = 'Z'
-        hzz += reduce(kron, [S[j] for j in pString])
+        hzz = reduce(kron, [S[j] for j in pString])
 
-    # Add TF term
-    for i in range(n):
         pString = ['I'] * n
         pString[i] = 'X'
-        hx += reduce(kron, [S[j] for j in pString])
+        hxx = reduce(kron, [S[j] for j in pString])
+        pString = ['I'] * n
+        pString[i+1] = 'X'
+        hxx += reduce(kron, [S[j] for j in pString])
 
-    h = -J * hzz - g/2 * hx
+        h += -J * hzz - g/2 * hxx
+
     return h
+
 
 def exact_gs_energy(J, g):
     """

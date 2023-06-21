@@ -13,7 +13,7 @@ from numpy.linalg import solve
 
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-from hamiltonian import Hamiltonian, TransverseIsing
+from hamiltonian import TransverseIsing
 
 from vumpt_tools import createMPS, normalizeMPS, mixedCanonical
 
@@ -471,48 +471,58 @@ def vumps(h, D, d, A0=None, tol=1e-5, tolFactor=1e-1, maxiter=100, verbose=False
 
 
 if __name__ == "__main__":
+    DnQbPairs = [
+            [2, 2],
+            [2, 3],
+            [2, 4],
+            [4, 2],
+            [8, 2],
+            [4, 4],
+            [8, 4]
+            ]
     d = 2
-    D = 2
     save=True
 
-    A = createMPS(D, d)
-    A = normalizeMPS(A)
-
     n = 16
-    nQb = 2
     g_range = np.linspace(0.1, 1.7, n)
-    Es = np.zeros(n)
 
-    fname = f'gstate_ising2_D{D}_qb{nQb}_updateg.npy'
-    skip = False
-    if os.path.exists(fname):
-        Es = np.load(fname)
-        print(f'File found: {fname}\nSkipping...')
-        skip = True
+    for D, nQb in DnQbPairs:
+        print(f'Current D: {D}')
+        print(f'Current nQ: {nQb}')
+        A = createMPS(D, d)
+        A = normalizeMPS(A)
 
-    if not skip:
-        for i, g in tqdm(enumerate(g_range), total=n):
-            # H = Hamiltonian({'ZZ':-1, 'X':g}).to_matrix()
-            H = TransverseIsing(1, g, nQb)
-            h = tensorOperator(H, d=d)
+        Es = np.zeros(n)
 
-            Al, Ac, Ar, C = vumps(h, D, d, A0=A, tol=1e-8, tolFactor=1e-2, verbose=False)
+        fname = f'gstate_ising2_D{D}_qb{nQb}.npy'
+        skip = False
+        if os.path.exists(fname):
+            Es = np.load(fname)
+            print(f'File found: {fname}\nSkipping...')
+            skip = True
 
-            H2 = TransverseIsing(1, g, 2)
-            h2 = tensorOperator(H2, d=d)
-            E = np.real(expValNMixed(h2, Ac, Ar))
+        if not skip:
+            for i, g in tqdm(enumerate(g_range), total=n):
+                H = TransverseIsing(1, g, nQb)
+                h = tensorOperator(H, d=d)
 
-            Es[i] = E
+                Al, Ac, Ar, C = vumps(h, D, d, A0=A, tol=1e-8, tolFactor=1e-2, verbose=False)
 
-        if save:
-            np.save(fname, Es)
+                H2 = TransverseIsing(1, g, 2)
+                h2 = tensorOperator(H2, d=d)
+                E = np.real(expValNMixed(h2, Ac, Ar))
 
-    plt.rcParams['text.usetex'] = True
-    plt.rcParams.update({'font.size': 14})
-    plt.title(f'Ground state optimisation, nQB:{nQb}, D:{D}')
-    plt.ylabel(r'$<\psi|h|\psi>$')
-    plt.xlabel('g')
-    plt.plot(g_range, Es, label='VUMPS')
-    # plt.legend()
-    plt.show()
+                Es[i] = E
+
+            if save:
+                np.save(fname, Es)
+
+    #plt.rcParams['text.usetex'] = True
+    #plt.rcParams.update({'font.size': 14})
+    #plt.title(f'Ground state optimisation, nQB:{nQb}, D:{D}')
+    #plt.ylabel(r'$<\psi|h|\psi>$')
+    #plt.xlabel('g')
+    #plt.plot(g_range, Es, label='VUMPS')
+    ## plt.legend()
+    #plt.show()
 
