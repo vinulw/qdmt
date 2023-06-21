@@ -52,21 +52,23 @@ def TransverseIsing(J, g, n):
     Generate an n qubit ising hamiltonian.
     '''
 
-    h = np.zeros((2**n, 2**n)) + 0j
+    hzz = np.zeros((2**n, 2**n)) + 0j
+    hx = np.zeros((2**n, 2**n)) + 0j
 
     # Add ZZ terms
     for i in range(n-1):
         pString = ['I'] * n
         pString[i] = 'Z'
         pString[i+1] = 'Z'
-        h += J * reduce(kron, [S[j] for j in pString])
+        hzz += reduce(kron, [S[j] for j in pString])
 
     # Add TF term
     for i in range(n):
         pString = ['I'] * n
         pString[i] = 'X'
-        h += g / 2. * reduce(kron, [S[j] for j in pString])
+        hx += reduce(kron, [S[j] for j in pString])
 
+    h = -J * hzz - g/2 * hx
     return h
 
 def exact_gs_energy(J, g):
@@ -83,17 +85,18 @@ def exact_gs_energy(J, g):
         return np.sqrt(1 + lambda_**2 + 2 * lambda_ * np.cos(k))
 
     E0_exact = -g / (J * 2. * np.pi) * quad(f, -np.pi, np.pi, args=(J / g, ))[0]
+
     return E0_exact
 
 
 if __name__=="__main__":
-    #J = -1
-    #n = 16
-    #g_range = np.linspace(0.1, 1.7, n)
-    #Es = np.zeros(n)
-    #for i, g in tqdm(enumerate(g_range), total=n):
-    #    E = exact_gs_energy(J, g)
-    #    Es[i] = np.real(E)
+    J = -1
+    n = 16
+    g_range = np.linspace(0.1, 1.7, n)
+    Es = np.zeros(n)
+    for i, g in tqdm(enumerate(g_range), total=n):
+        E = exact_gs_energy(J, g)
+        Es[i] = np.real(E)
 
     #print('Saving exact gs energy...')
     #data = np.zeros((2, n))
@@ -102,8 +105,8 @@ if __name__=="__main__":
     #header = 'g, energies'
     #np.savetxt('exact_gs_energy.csv', data, delimiter=',')
 
-    print('Loading exact gs_energy...')
-    g_range, Es = np.loadtxt('exact_gs_energy.csv', delimiter=',')
+    #print('Loading exact gs_energy...')
+    #g_range, Es = np.loadtxt('exact_gs_energy.csv', delimiter=',')
 
 
     plt.title('Ground state optimisation, exact')

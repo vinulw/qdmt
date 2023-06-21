@@ -472,33 +472,33 @@ def vumps(h, D, d, A0=None, tol=1e-5, tolFactor=1e-1, maxiter=100, verbose=False
 
 if __name__ == "__main__":
     d = 2
-    D = 8
+    D = 2
     save=True
 
     A = createMPS(D, d)
     A = normalizeMPS(A)
 
     n = 16
-    nQb = 4
+    nQb = 2
     g_range = np.linspace(0.1, 1.7, n)
     Es = np.zeros(n)
 
-    fname = f'gstate_ising2_D{D}_qb{nQb}.npy'
+    fname = f'gstate_ising2_D{D}_qb{nQb}_updateg.npy'
     skip = False
     if os.path.exists(fname):
-        Es = np.load(f'gstate_ising2_D{D}_qb{nQb}.npy')
+        Es = np.load(fname)
         print(f'File found: {fname}\nSkipping...')
         skip = True
 
     if not skip:
         for i, g in tqdm(enumerate(g_range), total=n):
             # H = Hamiltonian({'ZZ':-1, 'X':g}).to_matrix()
-            H = TransverseIsing(-1, g, nQb)
+            H = TransverseIsing(1, g, nQb)
             h = tensorOperator(H, d=d)
 
             Al, Ac, Ar, C = vumps(h, D, d, A0=A, tol=1e-8, tolFactor=1e-2, verbose=False)
 
-            H2 = TransverseIsing(-1, g, 2)
+            H2 = TransverseIsing(1, g, 2)
             h2 = tensorOperator(H2, d=d)
             E = np.real(expValNMixed(h2, Ac, Ar))
 
