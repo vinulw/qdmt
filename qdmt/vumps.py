@@ -469,6 +469,27 @@ def vumps(h, D, d, A0=None, tol=1e-5, tolFactor=1e-1, maxiter=100, verbose=False
 
     return Al, Ac, Ar, C
 
+def generate_ρ(Al, Ar, C, N):
+
+    AlCAlC = ncon([Al, C, Al.conj(), C.conj()],
+            [[1, -1, 2], [2, -3], [1, -2, 3], [3, -4]])
+    contrTop = zip(range(1, N), range(-2, -N-1, -1), range(2, N+1))
+    contrTop = [list(c) for c in contrTop]
+    contrBot = zip(range(N+1, 2*N), range(-N-2, -2*N-1, -1), range(N+2, 2*N+1))
+    contrBot = [list(c) for c in contrBot]
+
+    contrBot[-1][-1] = contrTop[-1][-1]
+
+    contr = [[-1, -N-1, 1, N+1]] + contrTop + contrBot
+
+    tensors = [AlCAlC] + [Ar]*(N-1) + [Ar.conj()]*(N-1)
+
+    return ncon(tensors, contr)
+
+
+
+
+
 
 if __name__ == "__main__":
     DnQbPairs = [

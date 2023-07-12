@@ -5,6 +5,7 @@ import cirq
 from ncon import ncon
 import numpy as np
 from ground_state import Hamiltonian
+from vumps import vumps, generate_ρ, expValNMixed
 
 from scipy.optimize import minimize
 
@@ -297,7 +298,7 @@ if __name__=="__main__":
     print('Performing imaginary time evolution ...')
 
     dt = 0.01
-    max_t = 5.0
+    max_t = 1.0
     ts = np.arange(0, max_t, dt)
 
     d = 2
@@ -309,7 +310,7 @@ if __name__=="__main__":
     U = expm(-1*H*dt*2.0)
     U = U.reshape(2, 2, 2, 2)
     H = H.reshape(2, 2, 2, 2)
-    θ0 = np.random.rand(θgs.shape[0])
+    θ0 = np.random.rand(8)
 
     def objective_func_trace(θdt, ρ0dt):
         N = len(ρ0dt.shape) // 2
@@ -326,9 +327,8 @@ if __name__=="__main__":
     print('Made initial ρ')
 
     ρ_curr = np.copy(ρ0)
-    ρ_curr_dir = np.copy(ρ0) # Directly evolving the density matrix
     θ_curr = np.copy(θ0)
-    ρ_len = len(ρ_curr_dir.shape) // 2
+    ρ_len = len(ρ_curr.shape) // 2
     norm_con = list(range(1, ρ_len + 1))
     norm_con = norm_con + norm_con
 
@@ -350,37 +350,28 @@ if __name__=="__main__":
 
 
     for i, t in tqdm(enumerate(ts[1:]), total=len(ts[1:])):
-#        ρcurrdt = ncon([U, U, ρ_curr, U.conj(), U.conj()],
-#                       ((-1, -3, 1, 3), (-5, -7, 5, 7),
-#                       (1, 2, 3, 4, 5, 6, 7, 8),
-#                       (-2, -4, 2, 4), (-6, -8, 6, 8)))
-#                       #(2, 4, -2, -4), (6, 8, -6, -8)))
-
-        #ρcurrdt = evolve_ρ(ρ_curr, U)
         ρcurrdt = evolve_ρ_trotter(ρ_curr, U)
         ρcurrdt = normalise_ρ(ρcurrdt)
-        #ρ_curr_dir = evolve_ρ(ρ_curr_dir, U)
-        #ρ_curr_dir = normalise_ρ(ρ_curr_dir)
 
-        res = minimize(objective_func_trace, θ_curr, args=(ρcurrdt))
-        # res = minimize(objective_func_trace, θ_curr, args=(ρ_curr_dir))
+        Al, Ac, Ar, C = vumps(ρcurrdt, D, d, tol=1e-8, tolFactor=1e-2, verbose=False)
+        ρ_curr = generate_ρ(Al, Ar, C, N)
+        ρgs = generate_ρ(Al, Ar, C, Ngs)
 
-        θ_curr = res.x
-        ρ_curr = rho_theta(θ_curr, N, d, D)
-        #ρ_curr = normalise_ρ(ρ_curr)
-        #ρ_curr = ρ_curr / np.real(ncon((ρ_curr, ), (norm_con, )))
+        energy = ncon([H, ρgs], ((1, 2, 3, 4), (3, 1, 4, 2)))
+        energies[i+1] = np.real(energy)
 
-        energies[i+1] = rho_objective_function(θ_curr, H)
-        trace_dists[i] = res.fun
+        # res = minimize(objective_func_trace, θ_curr, args=(ρcurrdt))
 
-        #e_energy = ncon([H, ρ_curr_dir], ((1, 2, 3, 4), (3, 1, 4, 2)))
-        #e_energy = np.real(e_energy)
-        #energies_exact[i+1] = e_energy
+        # θ_curr = res.x
+        # ρ_curr = rho_theta(θ_curr, N, d, D)
 
-        if res.success is False:
-            tqdm.write(f"Step: {i}")
-            tqdm.write(f"   Obj func : {res.fun}")
-            tqdm.write(f"   Message: {res.message}")
+        # energies[i+1] = rho_objective_function(θ_curr, H)
+        # trace_dists[i] = res.fun
+
+        # if res.success is False:
+        #     tqdm.write(f"Step: {i}")
+        #     tqdm.write(f"   Obj func : {res.fun}")
+        #     tqdm.write(f"   Message: {res.message}")
 
     print('Final energy : ', energies[-1])
     print(θ_curr)
@@ -398,9 +389,9 @@ if __name__=="__main__":
     #plt.title('Error in exact energy')
     #ax.plot(ts, np.abs(energies_exact - gs_energy))
     #ax.set_yscale('log')
-    plt.figure()
-    plt.title('Trace distances')
-    plt.plot(ts[1:], trace_dists)
+    #plt.figure()
+    #plt.title('Trace distances')
+    #plt.plot(ts[1:], trace_dists)
     plt.show()
 
 
