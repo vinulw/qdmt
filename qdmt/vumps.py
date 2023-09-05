@@ -502,7 +502,7 @@ if __name__ == "__main__":
             [8, 4]
             ]
     d = 2
-    save=True
+    save=False
 
     n = 16
     g_range = np.linspace(0.1, 1.7, n)
@@ -527,7 +527,8 @@ if __name__ == "__main__":
                 H = TransverseIsing(1, g, nQb)
                 h = tensorOperator(H, d=d)
 
-                Al, Ac, Ar, C = vumps(h, D, d, A0=A, tol=1e-8, tolFactor=1e-2, verbose=False)
+                Al, Ac, Ar, C = vumps(h, D, d, A0=A, tol=1e-8, tolFactor=1e-2, verbose=True)
+                assert(False)
 
                 H2 = TransverseIsing(1, g, 2)
                 h2 = tensorOperator(H2, d=d)
