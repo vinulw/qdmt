@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.linalg import svd
 import vumps as v
 from vumpt_tools import mixedCanonical
 from ncon import ncon
@@ -36,6 +37,11 @@ def cost_trace_distance(A, rho_target):
 
     return trace_dist(rho_target, rho_mat)
 
+def get_spectrum(ρ):
+    ρ_ = ρ.reshape(4, 4)
+
+    _, s, _ = svd(ρ_)
+    return s
 
 def main_opt_vumps():
     D = 2
@@ -44,6 +50,9 @@ def main_opt_vumps():
     N = 100
     t_dists = np.zeros(N)
     print('Collecting dist data...')
+
+    svals = np.zeros((N, 4))
+    svals_minus = np.zeros((N, 4))
     for i in tqdm(range(N)):
         A = v.createMPS(D, d)
         A = v.normalizeMPS(A)
@@ -53,8 +62,12 @@ def main_opt_vumps():
         rho = mixed_state_to_two_site_rho(Al, C, Ar)
         rho_mat = rho.reshape(d**2, d**2)
 
+        svals[i] = get_spectrum(rho)
+
         I = np.eye(4).reshape(2, 2, 2, 2)
-        rho = rho - I
+        rho = rho + I
+
+        svals_minus[i] = get_spectrum(rho)
 
         Al, Ac, Ar, C = v.vumps(rho, D, d, tol=1e-8, tolFactor=1e-2, verbose=False)
 
@@ -63,9 +76,17 @@ def main_opt_vumps():
 
         t_dists[i] = trace_dist(rho_mat, rho_opt_mat)
 
-    fname = 'data/tdist_optimising_state_minus_eye.npy'
+    #fname = 'data/tdist_optimising_state_minus_eye.npy'
+    #print('Saving data: ', fname)
+    #np.save(fname, t_dists)
+
+    fname = 'data/singular_vals_plus_I.npy'
     print('Saving data: ', fname)
-    np.save(fname, t_dists)
+    np.save(fname, svals_minus)
+
+    fname = 'data/singular_vals_no_change_plus.npy'
+    print('Saving data: ', fname)
+    np.save(fname, svals)
 
 def main_opt_minimize():
     D = 2
