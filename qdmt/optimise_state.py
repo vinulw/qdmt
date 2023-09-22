@@ -40,7 +40,9 @@ def cost_trace_distance(A, rho_target):
 def get_spectrum(ρ):
     ρ_ = ρ.reshape(4, 4)
 
-    _, s, _ = svd(ρ_)
+    # _, s, _ = svd(ρ_)
+
+    s, _ = np.linalg.eig(ρ_)
     return s
 
 def main_opt_vumps():
@@ -65,9 +67,21 @@ def main_opt_vumps():
         svals[i] = get_spectrum(rho)
 
         I = np.eye(4).reshape(2, 2, 2, 2)
-        rho = rho + I
+        rho = I - rho
+        # print('rho')
+        # print(rho)
+        # print()
+        # rho = I - 10*rho
+        # print('I-rho')
+        # print(I - rho)
+        # print()
 
         svals_minus[i] = get_spectrum(rho)
+        # print('Spectrum rho')
+        # print(get_spectrum(rho))
+        # print('Spectrum I - rho')
+        # print(get_spectrum(I - rho))
+        # assert()
 
         Al, Ac, Ar, C = v.vumps(rho, D, d, tol=1e-8, tolFactor=1e-2, verbose=False)
 
@@ -76,15 +90,15 @@ def main_opt_vumps():
 
         t_dists[i] = trace_dist(rho_mat, rho_opt_mat)
 
-    #fname = 'data/tdist_optimising_state_minus_eye.npy'
-    #print('Saving data: ', fname)
-    #np.save(fname, t_dists)
+    fname = 'data/tdist_optimising_state_minus_eye.npy'
+    print('Saving data: ', fname)
+    np.save(fname, t_dists)
 
-    fname = 'data/singular_vals_plus_I.npy'
+    fname = 'data/singular_vals_I_minus_rho.npy'
     print('Saving data: ', fname)
     np.save(fname, svals_minus)
 
-    fname = 'data/singular_vals_no_change_plus.npy'
+    fname = 'data/singular_vals_I_minus_rho.npy'
     print('Saving data: ', fname)
     np.save(fname, svals)
 
