@@ -5,6 +5,7 @@ from vumpt_tools import mixedCanonical
 from ncon import ncon
 from tqdm import tqdm
 from scipy.optimize import minimize
+import os
 
 def mixed_state_to_two_site_rho(Al, C, Ar):
     edges = [
@@ -23,7 +24,7 @@ def trace_dist(A, B):
     assert len(A.shape) == 2
 
     dist = A - B
-    return np.real(np.trace(dist * dist.conj().T))
+    return np.real(np.trace(dist @ dist.conj().T))
 
 def cost_trace_distance(A, rho_target):
     D = 2
@@ -50,57 +51,71 @@ def main_opt_vumps():
     d = 2
 
     N = 100
-    t_dists = np.zeros(N)
     print('Collecting dist data...')
 
-    svals = np.zeros((N, 4))
-    svals_minus = np.zeros((N, 4))
-    for i in tqdm(range(N)):
-        A = v.createMPS(D, d)
-        A = v.normalizeMPS(A)
+    tols = [1e-6, 1e-8, 1e-10, 1e-12]
+    for t in tols:
+        print(f'Gathering tol: {t}')
+        t_dists = np.zeros(N)
+        messages = []
+        for i in tqdm(range(N)):
+            A = v.createMPS(D, d)
+            A = v.normalizeMPS(A)
 
-        Al, Ac, Ar, C = mixedCanonical(A)
+            Al, Ac, Ar, C = mixedCanonical(A)
 
-        rho = mixed_state_to_two_site_rho(Al, C, Ar)
-        rho_mat = rho.reshape(d**2, d**2)
+            rho = mixed_state_to_two_site_rho(Al, C, Ar)
+            rho_mat = rho.reshape(d**2, d**2)
 
-        svals[i] = get_spectrum(rho)
 
-        I = np.eye(4).reshape(2, 2, 2, 2)
-        rho = I - rho
-        # print('rho')
-        # print(rho)
-        # print()
-        # rho = I - 10*rho
-        # print('I-rho')
-        # print(I - rho)
-        # print()
+            I = np.eye(4).reshape(2, 2, 2, 2)
+            rho =  I - rho
+            rho = rho / np.linalg.norm(rho)
 
-        svals_minus[i] = get_spectrum(rho)
-        # print('Spectrum rho')
-        # print(get_spectrum(rho))
-        # print('Spectrum I - rho')
-        # print(get_spectrum(I - rho))
-        # assert()
+            maxiter = 100
+            errors = np.zeros(maxiter)
+            energies = np.zeros(maxiter)
+            def callback(count, tensors, delta, energy):
+                errors[count-1] = delta
+                energies[count-1] = energy
 
-        Al, Ac, Ar, C = v.vumps(rho, D, d, tol=1e-8, tolFactor=1e-2, verbose=False)
+            Al, Ac, Ar, C, message = v.vumps(rho, D, d, tol=t, tolFactor=1e-2,
+                                             verbose=False, message=True,
+                                             maxiter=maxiter, callback=callback, M_opt=rho_mat)
 
-        rho_opt = mixed_state_to_two_site_rho(Al, C, Ar)
-        rho_opt_mat = rho_opt.reshape(d**2, d**2)
+            # print('Errors: ')
+            # print(errors)
+            # print('Energies: ')
+            # print(energies)
+            # folder = 'data/state_optimise'
 
-        t_dists[i] = trace_dist(rho_mat, rho_opt_mat)
+            # fname = os.path.join(folder, 'test_errors.npy')
+            # np.save(fname, errors)
 
-    fname = 'data/tdist_optimising_state_minus_eye.npy'
-    print('Saving data: ', fname)
-    np.save(fname, t_dists)
+            # fname = os.path.join(folder, 'test_energies.npy')
+            # np.save(fname, energies)
+            # assert()
 
-    fname = 'data/singular_vals_I_minus_rho.npy'
-    print('Saving data: ', fname)
-    np.save(fname, svals_minus)
+            rho_opt = mixed_state_to_two_site_rho(Al, C, Ar)
+            rho_opt_mat = rho_opt.reshape(d**2, d**2)
 
-    fname = 'data/singular_vals_I_minus_rho.npy'
-    print('Saving data: ', fname)
-    np.save(fname, svals)
+            t_dists[i] = trace_dist(rho_mat, rho_opt_mat)
+            print(t_dists[i])
+            print('Ideal trace distance...')
+            print(trace_dist(rho_mat, rho_mat))
+            assert()
+            messages.append(message)
+
+        folder = 'data/state_optimise'
+        tolstr = str(t)[-2:]
+        fname = os.path.join(folder, f'trace_opt_state_tol{tolstr}.npy')
+        print('Saving data: ', fname)
+        np.save(fname, t_dists)
+        fname = os.path.join(folder, f'messages_opt_state_tol{tolstr}.npy')
+        print('Saving data: ', fname)
+        np.save(fname, messages)
+        print()
+
 
 def main_opt_minimize():
     D = 2

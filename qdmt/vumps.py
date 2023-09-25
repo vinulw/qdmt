@@ -189,7 +189,7 @@ def sumLeft(AL, C, h, tol=1e-8):
     A = LinearOperator((D**2, D**2), matvec=mvec)
 
 
-    Lh = gmres(A, b, tol=tol)[0]
+    Lh, _ = gmres(A, b, tol=tol)
 
     return Lh
 
@@ -227,7 +227,7 @@ def sumRight(AR, C, h, tol=1e-8):
     mvec = lambda v: A_ @ v
     A = LinearOperator((D**2, D**2), matvec=mvec)
 
-    Rh = gmres(A, b, tol=tol)[0]
+    Rh, _ = gmres(A, b, tol=tol)
     return Rh
 
 def construct_CMap(Al, Ar, h, LH, RH):
@@ -422,7 +422,7 @@ def tensorOperator(O, d=2):
     return OTen
 
 
-def vumps(h, D, d, A0=None, tol=1e-5, tolFactor=1e-1, maxiter=100, verbose=False, callback=None):
+def vumps(h, D, d, A0=None, tol=1e-5, tolFactor=1e-1, maxiter=100, verbose=False, callback=None, message=False, M_opt=None):
     '''
     Perform vumps to optimise local hamiltonian h.
     '''
@@ -436,6 +436,19 @@ def vumps(h, D, d, A0=None, tol=1e-5, tolFactor=1e-1, maxiter=100, verbose=False
     delta = tol*1e-2
     count = 0
 
+    message_string = 'Maximum iteration reached'
+    verbose=True
+
+    dists = np.zeros(maxiter+1)
+    t1s = np.zeros(maxiter+1)
+    t2s = np.zeros(maxiter+1)
+    t3s = np.zeros(maxiter+1)
+    errors = np.zeros(maxiter)
+    t1, t2, t3, dist = trace_distance(Al, C, Ar, M_opt)
+    dists[0] = dist
+    t1s[0] = t1
+    t2s[0] = t2
+    t3s[0] = t3
     while maxiter > count:
         count += 1
 
@@ -456,18 +469,71 @@ def vumps(h, D, d, A0=None, tol=1e-5, tolFactor=1e-1, maxiter=100, verbose=False
 
         # Calculate errorL
         delta = errorL(hTilde, Al, Ac, Ar, C, Lh, Rh)
+        E = np.real(expValNMixed(hTilde, Ac, Ar))
+        t1, t2, t3, dist = trace_distance(Al, C, Ar, M_opt)
+
+        dists[count] = dist
+        t1s[count] = t1
+        t2s[count] = t2
+        t3s[count] = t3
+        errors[count-1] = delta
+
         if verbose:
-            E = np.real(expValNMixed(h, Ac, Ar))
             print(f'iteration: {count}')
             print(f'   energy: {E}')
             print(f'   errorL: {delta}')
+            print(f'   tr_dist: {dist}')
 
         if callback is not None:
-            callback(count, Al, Ac, Ar, C, hTilde, Lh, Rh)
+            callback(count, [Al, Ac, Ar, C, hTilde, Lh, Rh], delta, E)
         if delta < tol:
+            message_string = 'Success'
             break
 
+    plt.plot(dists, label='dist')
+    plt.plot(t1s, label='t1')
+    plt.plot(t2s, label='t2')
+    plt.plot(t3s, label='t3')
+    plt.title('Trace distance')
+    plt.legend()
+    plt.figure()
+    plt.title('Errors L')
+    plt.plot(errors)
+    plt.show()
+    breakpoint()
+
+    if message:
+        return Al, Ac, Ar, C, message_string
+
     return Al, Ac, Ar, C
+
+def trace_distance(Al, C, Ar, rho):
+    edges = [
+            (1, -1, 2), (1, -3, 3),
+            (2, 4), (3, 5),
+            (4, -2, 6), (5, -4, 6)
+            ]
+    tensors = [Al, Al.conj(),
+               C, C.conj(),
+               Ar, Ar.conj()]
+
+    rho_prime = ncon(tensors, edges)
+
+    rho = rho.reshape(4, 4)
+    rho_prime = rho_prime.reshape(4, 4)
+
+    dist = rho - rho_prime
+
+    # Split into term
+    T1 = np.real(np.trace(rho_prime.conj().T @ rho_prime))
+    T2 = np.real(np.trace(rho_prime.conj().T @ rho))
+    T3 = np.real(np.trace(rho.conj().T @ rho))
+
+    dist =  np.real(np.trace(dist @ dist.conj().T))
+    dist_ = T1 - 2*T2 + T3
+
+    return T1, -2*T2, T3, dist
+
 
 def generate_ρ(Al, Ar, C, N):
 
