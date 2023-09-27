@@ -69,7 +69,7 @@ def main_opt_vumps():
 
 
             I = np.eye(4).reshape(2, 2, 2, 2)
-            rho =  I - rho
+            rho =  I -  rho
             rho = rho / np.linalg.norm(rho)
 
             maxiter = 100

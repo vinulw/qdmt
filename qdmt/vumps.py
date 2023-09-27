@@ -439,16 +439,16 @@ def vumps(h, D, d, A0=None, tol=1e-5, tolFactor=1e-1, maxiter=100, verbose=False
     message_string = 'Maximum iteration reached'
     verbose=True
 
-    dists = np.zeros(maxiter+1)
-    t1s = np.zeros(maxiter+1)
-    t2s = np.zeros(maxiter+1)
-    t3s = np.zeros(maxiter+1)
+    # dists = np.zeros(maxiter+1)
+    # t1s = np.zeros(maxiter+1)
+    # t2s = np.zeros(maxiter+1)
+    # t3s = np.zeros(maxiter+1)
     errors = np.zeros(maxiter)
-    t1, t2, t3, dist = trace_distance(Al, C, Ar, M_opt)
-    dists[0] = dist
-    t1s[0] = t1
-    t2s[0] = t2
-    t3s[0] = t3
+    # t1, t2, t3, dist = trace_distance(Al, C, Ar, M_opt)
+    # dists[0] = dist
+    # t1s[0] = t1
+    # t2s[0] = t2
+    # t3s[0] = t3
     while maxiter > count:
         count += 1
 
@@ -456,33 +456,41 @@ def vumps(h, D, d, A0=None, tol=1e-5, tolFactor=1e-1, maxiter=100, verbose=False
         hTilde = rescaledHnMixed(h, Ac, Ar)
 
         # Calculate the environments
+        print('Summing Left')
         Lh = sumLeft(Al, C,  hTilde, tol=tolFactor*delta).reshape(D, D)
+        print('Summing right')
         Rh = sumRight(Ar, C, hTilde, tol=tolFactor*delta).reshape(D, D)
 
         # Update Ac
+        print('Updating Ac')
         AcTilde = update_Ac(hTilde, Al, Ac, Ar, C, Lh, Rh, tol=tolFactor*delta)
         # Update C
+        print('Updating C')
         CTilde = update_C(hTilde, Al, Ac, Ar, C, Lh, Rh, tol=tolFactor*delta)
 
         # Find update tensors
+        print('minAcCPolar')
         Al, Ac, Ar, C = minAcCPolar(AcTilde, CTilde, tol=delta*tolFactor**2)
+
+
+        breakpoint()
 
         # Calculate errorL
         delta = errorL(hTilde, Al, Ac, Ar, C, Lh, Rh)
         E = np.real(expValNMixed(hTilde, Ac, Ar))
-        t1, t2, t3, dist = trace_distance(Al, C, Ar, M_opt)
+        # t1, t2, t3, dist = trace_distance(Al, C, Ar, M_opt)
 
-        dists[count] = dist
-        t1s[count] = t1
-        t2s[count] = t2
-        t3s[count] = t3
-        errors[count-1] = delta
+        # dists[count] = dist
+        # t1s[count] = t1
+        # t2s[count] = t2
+        # t3s[count] = t3
+        # errors[count-1] = delta
 
         if verbose:
             print(f'iteration: {count}')
             print(f'   energy: {E}')
             print(f'   errorL: {delta}')
-            print(f'   tr_dist: {dist}')
+            # print(f'   tr_dist: {dist}')
 
         if callback is not None:
             callback(count, [Al, Ac, Ar, C, hTilde, Lh, Rh], delta, E)
@@ -490,17 +498,17 @@ def vumps(h, D, d, A0=None, tol=1e-5, tolFactor=1e-1, maxiter=100, verbose=False
             message_string = 'Success'
             break
 
-    plt.plot(dists, label='dist')
-    plt.plot(t1s, label='t1')
-    plt.plot(t2s, label='t2')
-    plt.plot(t3s, label='t3')
-    plt.title('Trace distance')
-    plt.legend()
-    plt.figure()
-    plt.title('Errors L')
-    plt.plot(errors)
-    plt.show()
-    breakpoint()
+    # plt.plot(dists, label='dist')
+    # plt.plot(t1s, label='t1')
+    # plt.plot(t2s, label='t2')
+    # plt.plot(t3s, label='t3')
+    # plt.title('Trace distance')
+    # plt.legend()
+    # plt.figure()
+    # plt.title('Errors L')
+    # plt.plot(errors)
+    # plt.show()
+    # breakpoint()
 
     if message:
         return Al, Ac, Ar, C, message_string

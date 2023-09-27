@@ -292,13 +292,14 @@ if __name__=="__main__":
     ####
     from scipy.linalg import expm
     from dmt_overlap import trace_distance
+    from optimise_state import trace_dist
     from tqdm import tqdm
     import matplotlib.pyplot as plt
 
     print('Performing imaginary time evolution ...')
 
-    dt = 0.01
-    max_t = 1.0
+    dt = 0.1
+    max_t = 0.5
     ts = np.arange(0, max_t, dt)
 
     d = 2
@@ -348,17 +349,28 @@ if __name__=="__main__":
     print('Target gs energy: ', gs_energy)
     #print('GS norm: ', np.real(ncon((ρgs, ), (norm_con, ))))
 
+    I = np.eye(2**N).reshape([2]*(N*2))
+
+    dists = np.zeros(ts.shape[0] - 1)
 
     for i, t in tqdm(enumerate(ts[1:]), total=len(ts[1:])):
         ρcurrdt = evolve_ρ_trotter(ρ_curr, U)
         ρcurrdt = normalise_ρ(ρcurrdt)
 
-        Al, Ac, Ar, C = vumps(ρcurrdt, D, d, tol=1e-8, tolFactor=1e-2, verbose=False)
+        nQb = len(ρcurrdt.shape) // 2
+
+        h_obj = I - ρcurrdt
+
+        Al, Ac, Ar, C = vumps(h_obj, D, d, tol=1e-8, tolFactor=1e-2, verbose=False)
         ρ_curr = generate_ρ(Al, Ar, C, N)
         ρgs = generate_ρ(Al, Ar, C, Ngs)
 
         energy = ncon([H, ρgs], ((1, 2, 3, 4), (3, 1, 4, 2)))
         energies[i+1] = np.real(energy)
+
+        dists[i] = trace_dist(
+                ρcurrdt.reshape(2**nQb, 2**nQb),
+                ρgs.reshape(2**nQb, 2**nQb))
 
         # res = minimize(objective_func_trace, θ_curr, args=(ρcurrdt))
 
@@ -382,6 +394,9 @@ if __name__=="__main__":
     plt.title('Error in energy')
     ax.plot(ts, np.abs(energies - gs_energy))
     ax.set_yscale('log')
+    plt.figure()
+    plt.title('Trace distance per time step')
+    plt.plot(ts[1:], dists)
     #plt.figure()
     #plt.title('Exact Energies')
     #plt.plot(ts, energies_exact)
