@@ -395,6 +395,29 @@ def minAcCPolar(AcTilde, CTilde, tol=1e-5):
 
     return Al, Ac, Ar, C
 
+def minAcCPolar2(AcTilde, CTilde, tol=1e-5):
+    D, d, _ = AcTilde.shape
+    tol = max(tol, 1e-14)
+
+    Ul_Ac, _ = polar(AcTilde.reshape(D*d, D), side='left')
+    Ul_C, _ = polar(CTilde, side='left')
+
+    Al = (Ul_Ac @ (Ul_C.conj().T)).reshape(D, d, D)
+
+    Ur_Ac, _ = polar(AcTilde.reshape(D, d*D), side='right')
+    Ur_C, _ = polar(CTilde, side='right')
+
+    Ar = (Ur_C.conj().T @ Ur_Ac).reshape(D, d, D)
+
+    C = CTilde
+    norm = np.trace(C @ C.conj().T) # normalise state
+    C = C / np.sqrt(norm)
+
+    Ac = AcTilde
+    # Ac = ncon([Al, C], ((-1, -2, 1), (1, -3)))
+
+    return Al, Ac, Ar, C
+
 def errorL(hTilde, Al, Ac, Ar, C, Lh, Rh):
     """
     Calculate ϵL to check for convergence.
@@ -444,6 +467,8 @@ def vumps(h, D, d, A0=None, tol=1e-5, tolFactor=1e-1, maxiter=100, verbose=False
     # t2s = np.zeros(maxiter+1)
     # t3s = np.zeros(maxiter+1)
     errors = np.zeros(maxiter)
+    errorsL = np.zeros(maxiter)
+    errorsR = np.zeros(maxiter)
     # t1, t2, t3, dist = trace_distance(Al, C, Ar, M_opt)
     # dists[0] = dist
     # t1s[0] = t1
@@ -456,27 +481,30 @@ def vumps(h, D, d, A0=None, tol=1e-5, tolFactor=1e-1, maxiter=100, verbose=False
         hTilde = rescaledHnMixed(h, Ac, Ar)
 
         # Calculate the environments
-        print('Summing Left')
+        #print('Summing Left')
         Lh = sumLeft(Al, C,  hTilde, tol=tolFactor*delta).reshape(D, D)
-        print('Summing right')
+        #print('Summing right')
         Rh = sumRight(Ar, C, hTilde, tol=tolFactor*delta).reshape(D, D)
 
         # Update Ac
-        print('Updating Ac')
+        #print('Updating Ac')
         AcTilde = update_Ac(hTilde, Al, Ac, Ar, C, Lh, Rh, tol=tolFactor*delta)
         # Update C
-        print('Updating C')
+        #print('Updating C')
         CTilde = update_C(hTilde, Al, Ac, Ar, C, Lh, Rh, tol=tolFactor*delta)
 
         # Find update tensors
-        print('minAcCPolar')
-        Al, Ac, Ar, C = minAcCPolar(AcTilde, CTilde, tol=delta*tolFactor**2)
+        #print('minAcCPolar')
+        # Al, Ac, Ar, C = minAcCPolar(AcTilde, CTilde, tol=delta*tolFactor**2)
 
-
-        breakpoint()
+        Al, Ac, Ar, C = minAcCPolar2(AcTilde, CTilde, tol=delta*tolFactor**2)
 
         # Calculate errorL
+        Lh = sumLeft(Al, C,  hTilde, tol=tolFactor*delta).reshape(D, D)
+        Rh = sumRight(Ar, C, hTilde, tol=tolFactor*delta).reshape(D, D)
         delta = errorL(hTilde, Al, Ac, Ar, C, Lh, Rh)
+        eL = np.linalg.norm(Ac - ncon([Al, C], ((-1, -2, 1), (1, -3)) ))
+        eR = np.linalg.norm(Ac - ncon([C, Ar], ((-1, 1), (1, -2, -3)) ))
         E = np.real(expValNMixed(hTilde, Ac, Ar))
         # t1, t2, t3, dist = trace_distance(Al, C, Ar, M_opt)
 
@@ -484,12 +512,16 @@ def vumps(h, D, d, A0=None, tol=1e-5, tolFactor=1e-1, maxiter=100, verbose=False
         # t1s[count] = t1
         # t2s[count] = t2
         # t3s[count] = t3
-        # errors[count-1] = delta
+        errors[count-1] = delta
+        errorsL[count-1] = eL
+        errorsR[count-1] = eR
 
         if verbose:
             print(f'iteration: {count}')
             print(f'   energy: {E}')
-            print(f'   errorL: {delta}')
+            print(f'   error: {delta}')
+            print(f'   errorL: {eL}')
+            print(f'   errorR: {eR}')
             # print(f'   tr_dist: {dist}')
 
         if callback is not None:
@@ -504,10 +536,15 @@ def vumps(h, D, d, A0=None, tol=1e-5, tolFactor=1e-1, maxiter=100, verbose=False
     # plt.plot(t3s, label='t3')
     # plt.title('Trace distance')
     # plt.legend()
-    # plt.figure()
-    # plt.title('Errors L')
-    # plt.plot(errors)
-    # plt.show()
+
+    plt.figure()
+    plt.title('Errors L')
+    plt.plot(errors, label='delta')
+    plt.plot(errorsL, label='eL')
+    plt.plot(errorsR, label='eR')
+    plt.legend()
+    plt.show()
+
     # breakpoint()
 
     if message:
@@ -568,18 +605,31 @@ def generate_ρ(Al, Ar, C, N):
 if __name__ == "__main__":
     DnQbPairs = [
             [2, 2],
-            [2, 3],
-            [2, 4],
-            [4, 2],
-            [8, 2],
-            [4, 4],
-            [8, 4]
+#              [2, 3],
+#              [2, 4],
+#              [4, 2],
+#              [8, 2],
+#              [4, 4],
+#              [8, 4]
             ]
     d = 2
-    save=False
+    save = False
+    plot = True
+    load = False
+
+    exactFile = 'data/exact_gs_energy.csv'
+
 
     n = 16
     g_range = np.linspace(0.1, 1.7, n)
+
+    plt.rcParams['text.usetex'] = True
+    plt.rcParams.update({'font.size': 14})
+    plt.title(f'Ground state optimisation')
+
+    if plot and exactFile is not None:
+        g_exact, e_exact = np.loadtxt(exactFile, delimiter=',')
+        plt.plot(g_exact, e_exact, label=f'Exact')
 
     for D, nQb in DnQbPairs:
         print(f'Current D: {D}')
@@ -591,7 +641,7 @@ if __name__ == "__main__":
 
         fname = f'gstate_ising2_D{D}_qb{nQb}.npy'
         skip = False
-        if os.path.exists(fname):
+        if os.path.exists(fname) and load:
             Es = np.load(fname)
             print(f'File found: {fname}\nSkipping...')
             skip = True
@@ -602,7 +652,6 @@ if __name__ == "__main__":
                 h = tensorOperator(H, d=d)
 
                 Al, Ac, Ar, C = vumps(h, D, d, A0=A, tol=1e-8, tolFactor=1e-2, verbose=True)
-                assert(False)
 
                 H2 = TransverseIsing(1, g, 2)
                 h2 = tensorOperator(H2, d=d)
@@ -613,12 +662,12 @@ if __name__ == "__main__":
             if save:
                 np.save(fname, Es)
 
-    #plt.rcParams['text.usetex'] = True
-    #plt.rcParams.update({'font.size': 14})
-    #plt.title(f'Ground state optimisation, nQB:{nQb}, D:{D}')
-    #plt.ylabel(r'$<\psi|h|\psi>$')
-    #plt.xlabel('g')
-    #plt.plot(g_range, Es, label='VUMPS')
-    ## plt.legend()
-    #plt.show()
+        if plot:
+            plt.plot(g_range, Es, label=f'nQB:{nQb}, D:{D}')
+
+    if plot:
+        plt.ylabel(r'$<\psi|h|\psi>$')
+        plt.xlabel('g')
+        plt.legend()
+        plt.show()
 
