@@ -460,7 +460,6 @@ def vumps(h, D, d, A0=None, tol=1e-5, tolFactor=1e-1, maxiter=100, verbose=False
     count = 0
 
     message_string = 'Maximum iteration reached'
-    verbose=True
 
     # dists = np.zeros(maxiter+1)
     # t1s = np.zeros(maxiter+1)

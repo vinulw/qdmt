@@ -53,7 +53,7 @@ def main_opt_vumps():
     N = 100
     print('Collecting dist data...')
 
-    tols = [1e-6, 1e-8, 1e-10, 1e-12]
+    tols = [1e-12, 1e-6, 1e-8, 1e-10]
     for t in tols:
         print(f'Gathering tol: {t}')
         t_dists = np.zeros(N)
@@ -70,11 +70,11 @@ def main_opt_vumps():
             print('Saving a test rho')
 
             I = np.eye(4).reshape(2, 2, 2, 2)
-            rho =  I -  rho
+            rho =  I - 10000*rho
             rho = rho / np.linalg.norm(rho)
 
-            np.save('test_rho.npy', rho_mat)
-            assert()
+            # np.save('test_rho.npy', rho_mat)
+            # assert()
 
             maxiter = 100
             errors = np.zeros(maxiter)
@@ -83,9 +83,11 @@ def main_opt_vumps():
                 errors[count-1] = delta
                 energies[count-1] = energy
 
+            print('Performing VUMPS...')
             Al, Ac, Ar, C, message = v.vumps(rho, D+2, d, tol=t, tolFactor=1e-2,
-                                             verbose=True, message=True,
+                                             verbose=False, message=True,
                                              maxiter=maxiter, callback=callback, M_opt=rho_mat)
+            print(message)
 
             # print('Errors: ')
             # print(errors)
