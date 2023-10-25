@@ -16,6 +16,17 @@ def uniformToRho(A, l=None, r=None):
                  ((2, 1), (1, -3, 4), (4, -4, 6), (2, -1, 7), (7, -2, 8), (6, 8)))
     return rho
 
+def traceDistance(A, B):
+    assert A.shape == B.shape
+    assert len(A.shape) == 4
+
+    d = A.shape[0]
+    A = A.reshape(d**2, d**2)
+    B = B.reshape(d**2, d**2)
+
+    dist = A - B
+    return np.real(np.trace(dist @ dist.conj().T))
+
 def gradCenterTermsAB(rhoB, A, l=None, r=None):
     """
     Calculate the value of the center terms of $Tr(\rho_A \rho_B)$.
@@ -238,9 +249,55 @@ def gradient(rhoB, A, l=None, r=None):
 
     return grad
 
+def optimiseDensityGradDescent(rhoB, D, eps=1e-1, A0=None, tol=1e-4, maxIter=1e4, verbose=True):
+    """
+    Find the tensor $A$ to optimise $Tr[(\rho_A - \rho_B)^2]$ using gradient descent.
+
+    """
+
+    d = rhoB.shape[0]
+
+    # if no initial value, choose random
+    if A0 is None:
+        A0 = createMPS(D, d)
+        A0 = normalizeMPS(A0)
+
+    # calculate gradient
+    g = gradient(rhoB, A0)
+
+    A = A0
+
+    i = 0
+
+    while not(np.linalg.norm(g) < tol):
+        # do a step
+        A = A - eps * g
+        A = normalizeMPS(A)
+        i += 1
+
+        if verbose and not(i % 50):
+            #E = np.real(expVal2Uniform(h, A))
+            rhoA = uniformToRho(A)
+            E = traceDistance(rhoB, rhoA)
+            print('iteration:\t{:d}\tdist:\t{:.12f}\tgradient norm:\t{:.4e}'.format(i, E, np.linalg.norm(g)))
+
+        # calculate new gradient
+        g = gradient(rhoB, A)
+
+        if i > maxIter:
+            print('Warning: gradient descent did not converge!')
+            break
+
+    # calculate ground state energy
+    # E = np.real(expVal2Uniform(h, A))
+    rhoA = uniformToRho(A)
+    E = traceDistance(rhoB, rhoA)
+
+    return E, A
+
 if __name__=="__main__":
     from uMPSHelpers import createMPS, normalizeMPS
-    d, D = 2, 4
+    d, D = 2, 2
     A = createMPS(D, d)
     A = normalizeMPS(A)
 
@@ -250,3 +307,10 @@ if __name__=="__main__":
 
     print(grad)
     print(np.linalg.norm(grad))
+
+    A0 = createMPS(D, d)
+    A0 = normalizeMPS(A0)
+
+    print('Trying gradient descent...')
+    E1, A1 = optimiseDensityGradDescent(rhoA, D, eps=1e-1, A0=A0, tol=1e-5, maxIter=1e4)
+    print('Computed trace dist:', E1, '\n')
