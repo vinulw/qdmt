@@ -1,5 +1,5 @@
 from uMPSHelpers import createMPS, normalizeMPS
-from optimise import uniformToRho, gradient
+from optimise import *
 import numpy as np
 from ncon import ncon
 
@@ -15,7 +15,6 @@ def testGradient():
 
 
 def testUniformToRhoN():
-    from optimise import uniformToRhoN
     from uMPSHelpers import fixedPoints
     d, D = 2, 4
     A = createMPS(D, d)
@@ -28,3 +27,19 @@ def testUniformToRhoN():
     rhoN = uniformToRhoN(A, 2)
 
     assert np.allclose(rho2, rhoN)
+
+def testTraceDistance():
+
+    d, D = 2, 4
+    A = createMPS(D, d)
+    A = normalizeMPS(A)
+
+    rhoA = uniformToRhoN(A, 2)
+    tDist = traceDistance(rhoA, rhoA)
+
+    assert np.allclose(tDist, 0)
+
+    rhoA = uniformToRhoN(A, 3)
+    tDist = traceDistance(rhoA, rhoA)
+
+    assert np.allclose(tDist, 0)

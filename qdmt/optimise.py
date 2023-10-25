@@ -45,14 +45,15 @@ def uniformToRhoN(A, N, l=None, r=None):
 
 def traceDistance(A, B):
     assert A.shape == B.shape
-    assert len(A.shape) == 4
 
     d = A.shape[0]
-    A = A.reshape(d**2, d**2)
-    B = B.reshape(d**2, d**2)
+    N = len(A.shape) // 2
+    A = A.reshape(d**N, d**N)
+    B = B.reshape(d**N, d**N)
 
     dist = A - B
     return np.real(np.trace(dist @ dist.conj().T))
+
 
 def gradCenterTermsAB(rhoB, A, l=None, r=None):
     """
