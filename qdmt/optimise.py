@@ -16,6 +16,33 @@ def uniformToRho(A, l=None, r=None):
                  ((2, 1), (1, -3, 4), (4, -4, 6), (2, -1, 7), (7, -2, 8), (6, 8)))
     return rho
 
+
+def uniformToRhoN(A, N, l=None, r=None):
+    '''
+    Generate $\rho(A)_N$ which is the density matrix over $N$ sites.
+    '''
+    if l is None or r is None:
+        l, r = fixedPoints(A)
+    l, r = fixedPoints(A)
+
+    tensors = [l, *[A]*N, *[A.conj()]*N, r]
+    edges = [(2, 1)]
+    i = 3
+    edgesA = [(1, -N-1, i)]
+    edgesAdag = [(2, -1, i+1)]
+    i += 2
+    for j in range(N-1):
+        edgesA.append((i-2, -N-2-j, i))
+        edgesAdag.append((i-1, -2-j, i+1))
+        i += 2
+
+    i = edgesA[-1][2]
+    j = edgesAdag[-1][2]
+    edges = edges + edgesA + edgesAdag + [(i, j)]
+
+    return ncon(tensors, edges)
+
+
 def traceDistance(A, B):
     assert A.shape == B.shape
     assert len(A.shape) == 4
