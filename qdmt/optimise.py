@@ -54,23 +54,88 @@ def traceDistance(A, B):
     dist = A - B
     return np.real(np.trace(dist @ dist.conj().T))
 
-
 def gradCenterTermsAB(rhoB, A, l=None, r=None):
-    """
-    Calculate the value of the center terms of $Tr(\rho_A \rho_B)$.
-    """
 
     # calculate fixed points if not supplied
     if l is None or r is None:
         l, r = fixedPoints(A)
 
-    # calculate first contraction
-    term1 = ncon((l, r, A, A, np.conj(A), rhoB), ([-1, 1], [5, 7], [1, 3, 2], [2, 4, 5], [-3, 6, 7], [3, 4, -2, 6]))
+    N = len(rhoB.shape) // 2
 
-    # calculate second contraction
-    term2 = ncon((l, r, A, A, np.conj(A), rhoB), ([6, 1], [5, -3], [1, 3, 2], [2, 4, 5], [6, 7, -1], [3, 4, 7, -2]))
+    grad = np.zeros(A.shape, dtype=complex)
 
-    return term1, term2
+    tensors = [l, r, *[A]*N, *[A.conj()]*(N-1), rhoB]
+    for i in range(N):
+        print(i)
+        contr = gradientContraction(N, i)
+        print(contr)
+        gradTerm = ncon(tensors, contr)
+        print()
+        grad += gradTerm
+
+    return grad
+
+
+def contractionExpA(N):
+    lList = range(1, 4*N+1, 4)
+    cList = range(3, 4*N+3, 4)
+    rList = range(5, 4*N+5, 4)
+    return [list(e) for e in zip(lList, cList, rList)]
+
+def contractionExpADag(N):
+    lList = range(2, 4*N+2, 4)
+    cList = range(4, 4*N+4, 4)
+    rList = range(6, 4*N+6, 4)
+    return [list(e) for e in zip(lList, cList, rList)]
+
+def contractionExpH(N):
+    return [list(range(3, 4*N+3, 4)) + list(range(4, 4*N+4, 4))]
+
+def expectationContraction(N):
+    '''
+    Generate the contraction list for expectation of an N site Hamiltonian
+    '''
+    Acontr = contractionExpA(N)
+    ADagcontr = contractionExpADag(N)
+    lcontr = [(ADagcontr[0][0], Acontr[0][0])]
+    rcontr = [(Acontr[-1][-1], ADagcontr[-1][-1])]
+    hcontr = contractionExpH(N)
+    return lcontr + rcontr + Acontr + ADagcontr + hcontr
+
+def gradientContraction(N, i):
+    '''
+    Generate contraction list for the gradient at site i of an N site Hamiltonian
+    '''
+    Acontr = contractionExpA(N)
+    ADagcontr = contractionExpADag(N)
+    lcontr = [[ADagcontr[0][0], Acontr[0][0]]]
+    rcontr = [[Acontr[-1][-1], ADagcontr[-1][-1]]]
+    hcontr = contractionExpH(N)
+
+    # Left edge
+    if i == 0:
+        lcontr[0][0] = -1
+        hcontr[0][N] = -2
+        ADagcontr[1][0] = -3
+
+        ADagcontr = ADagcontr[1:]
+        return lcontr + rcontr + Acontr + ADagcontr + hcontr
+    if i == N-1:
+        ADagcontr[-2][2] = -1
+        hcontr[0][-1] = -2
+        rcontr[-1][1] = -3
+
+        ADagcontr = ADagcontr[:-1]
+        return lcontr + rcontr + Acontr + ADagcontr + hcontr
+
+    ADagcontr[i-1][2] = -1
+    hcontr[0][N+i] = -2
+    ADagcontr[i+1][0] = -3
+
+    ADagcontr = ADagcontr[:i] + ADagcontr[i+1:]
+    return lcontr + rcontr + Acontr + ADagcontr + hcontr
+
+
 
 def gradCenterTermsAA(A, l=None, r=None):
     """
@@ -264,7 +329,7 @@ def gradient(rhoB, A, l=None, r=None):
         l, r = fixedPoints(A)
 
     # find terms
-    centerTerm1, centerTerm2 = gradCenterTermsAB(rhoB, A, l, r)
+    centerTerms = gradCenterTermsAB(rhoB, A, l, r)
     leftTerms = gradLeftTermsAB(rhoB, A, l, r)
     rightTerms = gradRightTermsAB(rhoB, A, l, r)
 
@@ -273,7 +338,7 @@ def gradient(rhoB, A, l=None, r=None):
     rightTermsA = 2*gradRightTermsAA(A, l, r)
 
     grad = centerTermAA1 + centerTermAA2 + centerTermAA3 + centerTermAA4 + leftTermsA + rightTermsA
-    grad -= 2 * (centerTerm1 + centerTerm2 + leftTerms + rightTerms)
+    grad -= 2 * (centerTerms + leftTerms + rightTerms)
 
     return grad
 

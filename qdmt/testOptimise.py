@@ -43,3 +43,26 @@ def testTraceDistance():
     tDist = traceDistance(rhoA, rhoA)
 
     assert np.allclose(tDist, 0)
+
+def testGradCenterTermsAB():
+    d, D = 2, 4
+    A = createMPS(D, d)
+    A = normalizeMPS(A)
+
+    l, r = fixedPoints(A)
+
+    B = createMPS(D, d)
+    B = normalizeMPS(B)
+
+    rhoB = uniformToRhoN(A, 2)
+
+    # calculate first contraction
+    term1 = ncon((l, r, A, A, np.conj(A), rhoB), ([-1, 1], [5, 7], [1, 3, 2], [2, 4, 5], [-3, 6, 7], [3, 4, -2, 6]))
+
+    # calculate second contraction
+    term2 = ncon((l, r, A, A, np.conj(A), rhoB), ([6, 1], [5, -3], [1, 3, 2], [2, 4, 5], [6, 7, -1], [3, 4, 7, -2]))
+
+    gradAB = term1 + term2
+
+    assert np.allclose(gradAB, gradCenterTermsAB(rhoB, A, l=l, r=r))
+
