@@ -44,7 +44,7 @@ def testTraceDistance():
 
     assert np.allclose(tDist, 0)
 
-def testGradCenterTermsAB():
+def testgradCenterTermsAB():
     d, D = 2, 4
     A = createMPS(D, d)
     A = normalizeMPS(A)
@@ -66,3 +66,46 @@ def testGradCenterTermsAB():
 
     assert np.allclose(gradAB, gradCenterTermsAB(rhoB, A, l=l, r=r))
 
+
+def testgradCenterTermsAA():
+    d, D = 2, 4
+    A = createMPS(D, d)
+    A = normalizeMPS(A)
+
+    l, r = fixedPoints(A)
+
+
+    # Exact gradient for 2 site
+    tensors = [l, A, A, A.conj(), r, l, A, A, A.conj(), A.conj(), r]
+    edges = [
+        (-1, 2), (2, 6, 10), (10, 12, 14), (-3, 11, 13), (14, 13),
+        (4, 3), (3, -2, 8), (8, 11, 15), (4, 6, 9), (9, 12, 16), (15, 16)
+    ]
+    term1 = ncon(tensors, edges)
+
+    tensors = [l, A, A, A.conj(), r, l, A, A, A.conj(), A.conj(), r]
+    edges = [
+        (1, 2), (2, 6, 10), (10, 12, 14), (1, 5, -1), (14, -3),
+        (4, 3), (3, 5, 8), (8, -2, 15), (4, 6, 9), (9, 12, 16), (15, 16)
+    ]
+    term2 = ncon(tensors, edges)
+
+    tensors = [l, A, A, A.conj(), A.conj(), r, l, A, A, A.conj(), r]
+    edges = [
+        (1, 2), (2, -2, 10), (10, 12, 14), (1, 5, 7), (7, 11, 13), (14, 13),
+        (-1, 3), (3, 5, 8), (8, 11, 15), (-3, 12, 16), (15, 16)
+    ]
+    term3 = ncon(tensors, edges)
+
+    tensors = [l, A, A, A.conj(), A.conj(), r, l, A, A, A.conj(), r]
+    edges = [
+        (1, 2), (2, 6, 10), (10, -2, 14), (1, 5, 7), (7, 11, 13), (14, 13),
+        (4, 3), (3, 5, 8), (8, 11, 15), (4, 6, -1), (15, -3)
+    ]
+    term4 = ncon(tensors, edges)
+
+    gradExact = term1 + term2 + term3 + term4
+
+    gradAA = gradCenterTermsAA(A, 2, l, r)
+
+    assert np.allclose(gradAA, gradExact)

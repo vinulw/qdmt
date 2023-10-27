@@ -6,6 +6,7 @@ import numpy as np
 from uMPSHelpers import fixedPoints
 from scipy.sparse.linalg import LinearOperator, gmres
 from functools import partial
+from copy import deepcopy
 
 def uniformToRho(A, l=None, r=None):
 
@@ -54,13 +55,14 @@ def traceDistance(A, B):
     dist = A - B
     return np.real(np.trace(dist @ dist.conj().T))
 
-def gradCenterTermsAB(rhoB, A, l=None, r=None):
+def gradCenterTermsAB(rhoB, A, N=None, l=None, r=None):
 
     # calculate fixed points if not supplied
     if l is None or r is None:
         l, r = fixedPoints(A)
 
-    N = len(rhoB.shape) // 2
+    if N is None:
+        N = len(rhoB.shape) // 2
 
     grad = np.zeros(A.shape, dtype=complex)
 
@@ -74,7 +76,6 @@ def gradCenterTermsAB(rhoB, A, l=None, r=None):
         grad += gradTerm
 
     return grad
-
 
 def contractionExpA(N):
     lList = range(1, 4*N+1, 4)
@@ -135,46 +136,85 @@ def gradientContraction(N, i):
     ADagcontr = ADagcontr[:i] + ADagcontr[i+1:]
     return lcontr + rcontr + Acontr + ADagcontr + hcontr
 
+def genAContr(l0, p0, r0, s, N):
+    lList = range(l0, s*N+l0, s)
+    pList = range(p0, s*N+p0, s)
+    rList = range(r0, s*N+r0, s)
+
+    return [list(e) for e in zip(lList, pList, rList)]
 
 
-def gradCenterTermsAA(A, l=None, r=None):
-    """
-    Calculate the value of the center terms of $Tr(\rho_A \rho_A)$.
-    """
+def contractionTrAA(N):
+    outerA = genAContr(1, 5, 7, 6, N)
+    outerAdag = genAContr(4, 6, 10, 6, N)
+    innerA = genAContr(3, 6, 9, 6, N)
+    innerAdag = genAContr(2, 5, 8, 6, N)
 
-    if l is None or r is None:
-        l, r = fixedPoints(A)
+    return outerA, outerAdag, innerA, innerAdag
 
+def gradCenterTermsAA(A, N, l=None, r=None):
 
-    tensors = [l, A, A, A.conj(), r, l, A, A, A.conj(), A.conj(), r]
-    edges = [
-        (-1, 2), (2, 6, 10), (10, 12, 14), (-3, 11, 13), (14, 13),
-        (4, 3), (3, -2, 8), (8, 11, 15), (4, 6, 9), (9, 12, 16), (15, 16)
-    ]
-    term1 = ncon(tensors, edges)
+    outerA, outerAdag, innerA, innerAdag = contractionTrAA(N)
 
-    tensors = [l, A, A, A.conj(), r, l, A, A, A.conj(), A.conj(), r]
-    edges = [
-        (1, 2), (2, 6, 10), (10, 12, 14), (1, 5, -1), (14, -3),
-        (4, 3), (3, 5, 8), (8, -2, 15), (4, 6, 9), (9, 12, 16), (15, 16)
-    ]
-    term2 = ncon(tensors, edges)
+    grad = np.zeros(A.shape, dtype=complex)
 
-    tensors = [l, A, A, A.conj(), A.conj(), r, l, A, A, A.conj(), r]
-    edges = [
-        (1, 2), (2, -2, 10), (10, 12, 14), (1, 5, 7), (7, 11, 13), (14, 13),
-        (-1, 3), (3, 5, 8), (8, 11, 15), (-3, 12, 16), (15, 16)
-    ]
-    term3 = ncon(tensors, edges)
+    tensors = [l, l, *[A]*(2*N), *[A.conj()]*(2*N-1), r, r]
 
-    tensors = [l, A, A, A.conj(), A.conj(), r, l, A, A, A.conj(), r]
-    edges = [
-        (1, 2), (2, 6, 10), (10, -2, 14), (1, 5, 7), (7, 11, 13), (14, 13),
-        (4, 3), (3, 5, 8), (8, 11, 15), (4, 6, -1), (15, -3)
-    ]
-    term4 = ncon(tensors, edges)
+    outerl = [[outerAdag[0][0], outerA[0][0]]]
+    innerl = [[innerAdag[0][0], innerA[0][0]]]
 
-    return term1, term2, term3, term4
+    outerr = [[outerA[-1][-1], outerAdag[-1][-1]]]
+    innerr = [[innerA[-1][-1], innerAdag[-1][-1]]]
+
+    for i in range(N):
+        # Take grad of outer
+        outerAdag_ = deepcopy(outerAdag)
+        outerl_ = deepcopy(outerl)
+        outerr_ = deepcopy(outerr)
+        innerA_ = deepcopy(innerA)
+
+        if i > 0:
+            outerAdag_[i-1][2] = -1
+        if i < N-1:
+            outerAdag_[i+1][0] = -3
+
+        outerAdag_ = outerAdag_[:i] + outerAdag_[i+1:]
+        if i == 0:
+            outerl_[0][0] = -1
+        if i == N-1:
+            outerr_[0][1] = -3
+
+        innerA_[i][1] = -2
+
+        contr = outerl_ + innerl + outerA + innerA_ + outerAdag_ + innerAdag + outerr_ + innerr
+
+        grad += ncon(tensors, contr)
+
+        # Take grad of inner
+        innerAdag_ = deepcopy(innerAdag)
+        innerl_ = deepcopy(innerl)
+        innerr_ = deepcopy(innerr)
+        outerA_ = deepcopy(outerA)
+
+        if i > 0:
+            innerAdag_[i-1][2] = -1
+        if i < N-1:
+            innerAdag_[i+1][0] = -3
+
+        innerAdag_ = innerAdag_[:i] + innerAdag_[i+1:]
+        if i == 0:
+            innerl_[0][0] = -1
+        if i == N-1:
+            innerr_[0][1] = -3
+
+        outerA_[i][1] = -2
+
+        contr = outerl + innerl_ + outerA_ + innerA + outerAdag + innerAdag_ + outerr + innerr_
+
+        grad += ncon(tensors, contr)
+
+    return grad
+
 
 def EtildeRight(A, l, r, v):
     """
@@ -323,21 +363,22 @@ def gradient(rhoB, A, l=None, r=None):
     """
     Calculate the gradient of $Tr[(\rho_A-\rho_B)^2]$
     """
+    N = len(rhoB.shape) // 2
 
     # if l, r not specified, find fixed points
     if l is None or r is None:
         l, r = fixedPoints(A)
 
     # find terms
-    centerTerms = gradCenterTermsAB(rhoB, A, l, r)
+    centerTerms = gradCenterTermsAB(rhoB, A, N, l, r)
     leftTerms = gradLeftTermsAB(rhoB, A, l, r)
     rightTerms = gradRightTermsAB(rhoB, A, l, r)
 
-    centerTermAA1, centerTermAA2, centerTermAA3, centerTermAA4 = gradCenterTermsAA(A, l, r)
+    centerTermsAA = gradCenterTermsAA(A, N, l, r)
     leftTermsA = 2*gradLeftTermsAA(A, l, r)
     rightTermsA = 2*gradRightTermsAA(A, l, r)
 
-    grad = centerTermAA1 + centerTermAA2 + centerTermAA3 + centerTermAA4 + leftTermsA + rightTermsA
+    grad = centerTermsAA + leftTermsA + rightTermsA
     grad -= 2 * (centerTerms + leftTerms + rightTerms)
 
     return grad
