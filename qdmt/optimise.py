@@ -322,23 +322,32 @@ def EtildeLeft(A, l, r, v):
 
 def LhUniform(rhoB, A, l=None, r=None):
     """
-    Find the partial contraction for Lh for $Tr(\rho_A \rho_B)$.
+    Find the partial contraction for Lh for $Tr(\rho_B \rho_A)$ for an N site $\rho_B$.
     """
+    N = len(rhoB.shape) // 2
 
     D = A.shape[0]
 
-    # if l, r not specified, find fixed points
+# if l, r not specified, find fixed points
     if l is None or r is None:
         l, r = fixedPoints(A)
 
-    # construct b, which is the matrix to the right of (1 - E)^P in the figure above
-    b = ncon((l, A, A, np.conj(A), np.conj(A), rhoB), ([5, 1], [1, 3, 2], [2, 4, -2], [5, 6, 7], [7, 8, -1], [3, 4, 6, 8]))
+    lcontr, rcontr, Acontr, ADagcontr, hcontr = expectationContraction(N)
+
+    Acontr[-1][-1] = -2
+    ADagcontr[-1][-1] = -1
+
+    tensors = [*[A]*N, *[A.conj()]*N, l, rhoB]
+    contr = [*Acontr, *ADagcontr, *lcontr, *hcontr]
+
+    b = ncon(tensors, contr)
 
     # solve Ax = b for x
     A = LinearOperator((D ** 2, D ** 2), matvec=partial(EtildeLeft, A, l, r))
     Lh = gmres(A, b.reshape(D ** 2))[0]
 
     return Lh.reshape((D, D))
+
 
 def gradRightTermsAB(rhoB, A, l=None, r=None):
     """

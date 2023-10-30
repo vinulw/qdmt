@@ -134,3 +134,27 @@ def testRhUniform():
 
     assert np.allclose(Rh, RhN)
 
+def testLhUniform():
+    from scipy.sparse.linalg import LinearOperator, gmres
+    from functools import partial
+    d, D = 2, 4
+    A = createMPS(D, d)
+    A = normalizeMPS(A)
+
+    l, r = fixedPoints(A)
+
+    B = createMPS(D, d)
+    B = normalizeMPS(B)
+    rhoB = uniformToRhoN(B, 2)
+
+    # Prepare 2 site Lh
+    b = ncon((l, A, A, np.conj(A), np.conj(A), rhoB), ([5, 1], [1, 3, 2], [2, 4, -2], [5, 6, 7], [7, 8, -1], [3, 4, 6, 8]))
+
+    # solve Ax = b for x
+    M = LinearOperator((D ** 2, D ** 2), matvec=partial(EtildeLeft, A, l, r))
+    Lh = gmres(M, b.reshape(D ** 2))[0]
+    Lh =  Lh.reshape((D, D))
+
+    LhN = LhUniform(rhoB, A, l, r)
+
+    assert np.allclose(Lh, LhN)
