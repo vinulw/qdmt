@@ -109,3 +109,28 @@ def testgradCenterTermsAA():
     gradAA = gradCenterTermsAA(A, 2, l, r)
 
     assert np.allclose(gradAA, gradExact)
+
+def testRhUniform():
+    from scipy.sparse.linalg import LinearOperator, gmres
+    from functools import partial
+    d, D = 2, 4
+    A = createMPS(D, d)
+    A = normalizeMPS(A)
+
+    l, r = fixedPoints(A)
+
+    B = createMPS(D, d)
+    B = normalizeMPS(B)
+    rhoB = uniformToRhoN(B, 2)
+
+    # Prepare 2 site Rh
+    b = ncon((r, A, A, np.conj(A), np.conj(A), rhoB), ([4, 5], [-1, 2, 1], [1, 3, 4], [-2, 8, 7], [7, 6, 5], [2, 3, 8, 6]))
+
+    M = LinearOperator((D ** 2, D ** 2), matvec=partial(EtildeRight, A, l, r))
+    Rh = gmres(M, b.reshape(D ** 2))[0]
+    Rh = Rh.reshape((D, D))
+
+    RhN = RhUniform(rhoB, A, l, r)
+
+    assert np.allclose(Rh, RhN)
+

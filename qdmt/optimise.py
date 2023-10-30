@@ -101,7 +101,7 @@ def expectationContraction(N):
     lcontr = [(ADagcontr[0][0], Acontr[0][0])]
     rcontr = [(Acontr[-1][-1], ADagcontr[-1][-1])]
     hcontr = contractionExpH(N)
-    return lcontr + rcontr + Acontr + ADagcontr + hcontr
+    return lcontr, rcontr, Acontr, ADagcontr, hcontr
 
 def gradientContraction(N, i):
     '''
@@ -240,8 +240,9 @@ def EtildeRight(A, l, r, v):
 
 def RhUniform(rhoB, A, l=None, r=None):
     """
-    Find the partial contraction for Rh for $Tr(\rho_B \rho_A)$.
+    Find the partial contraction for Rh for $Tr(\rho_B \rho_A)$ for an N site $\rho_B$.
     """
+    N = len(rhoB.shape) // 2
 
     D = A.shape[0]
 
@@ -249,10 +250,18 @@ def RhUniform(rhoB, A, l=None, r=None):
     if l is None or r is None:
         l, r = fixedPoints(A)
 
-# construct b, which is the matrix to the right of (1 - E)^P in the figure above
-    b = ncon((r, A, A, np.conj(A), np.conj(A), rhoB), ([4, 5], [-1, 2, 1], [1, 3, 4], [-2, 8, 7], [7, 6, 5], [2, 3, 8, 6]))
+    lcontr, rcontr, Acontr, ADagcontr, hcontr = expectationContraction(N)
 
-# solve Ax = b for x
+    Acontr[0][0] = -1
+    ADagcontr[0][0] = -2
+
+    tensors = [*[A]*N, *[A.conj()]*N, r, rhoB]
+    contr = [*Acontr, *ADagcontr, *rcontr, *hcontr]
+
+    # construct b, which is the matrix to the right of (1 - E)^P in the figure above
+    b = ncon(tensors, contr)
+
+    # solve Ax = b for x
     A = LinearOperator((D ** 2, D ** 2), matvec=partial(EtildeRight, A, l, r))
     Rh = gmres(A, b.reshape(D ** 2))[0]
 
