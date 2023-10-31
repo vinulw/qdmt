@@ -68,11 +68,8 @@ def gradCenterTermsAB(rhoB, A, N=None, l=None, r=None):
 
     tensors = [l, r, *[A]*N, *[A.conj()]*(N-1), rhoB]
     for i in range(N):
-        print(i)
         contr = gradientContraction(N, i)
-        print(contr)
         gradTerm = ncon(tensors, contr)
-        print()
         grad += gradTerm
 
     return grad
