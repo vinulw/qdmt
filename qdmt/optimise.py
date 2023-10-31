@@ -450,17 +450,19 @@ if __name__=="__main__":
     d, D = 2, 2
     A = createMPS(D, d)
     A = normalizeMPS(A)
+    N = 5
 
-    rhoA = uniformToRho(A)
+    rhoA = uniformToRhoN(A, N)
 
     grad = gradient(rhoA, A)
 
     print(grad)
     print(np.linalg.norm(grad))
 
-    A0 = createMPS(D, d)
-    A0 = normalizeMPS(A0)
+    # A0 = createMPS(D, d)
+    # A0 = normalizeMPS(A0)
+    A0 = A + 0.01*np.random.randn(D, d, D)
 
     print('Trying gradient descent...')
-    E1, A1 = optimiseDensityGradDescent(rhoA, D, eps=1e-1, A0=A0, tol=1e-5, maxIter=1e4)
+    E1, A1 = optimiseDensityGradDescent(rhoA, D, eps=5e-2, A0=A0, tol=1e-5, maxIter=1e4)
     print('Computed trace dist:', E1, '\n')
