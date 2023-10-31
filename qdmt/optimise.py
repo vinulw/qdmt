@@ -408,6 +408,7 @@ def optimiseDensityGradDescent(rhoB, D, eps=1e-1, A0=None, tol=1e-4, maxIter=1e4
     """
 
     d = rhoB.shape[0]
+    N = len(rhoB.shape) // 2
 
     # if no initial value, choose random
     if A0 is None:
@@ -429,7 +430,7 @@ def optimiseDensityGradDescent(rhoB, D, eps=1e-1, A0=None, tol=1e-4, maxIter=1e4
 
         if verbose and not(i % 50):
             #E = np.real(expVal2Uniform(h, A))
-            rhoA = uniformToRho(A)
+            rhoA = uniformToRhoN(A, N)
             E = traceDistance(rhoB, rhoA)
             print('iteration:\t{:d}\tdist:\t{:.12f}\tgradient norm:\t{:.4e}'.format(i, E, np.linalg.norm(g)))
 
@@ -442,7 +443,7 @@ def optimiseDensityGradDescent(rhoB, D, eps=1e-1, A0=None, tol=1e-4, maxIter=1e4
 
     # calculate ground state energy
     # E = np.real(expVal2Uniform(h, A))
-    rhoA = uniformToRho(A)
+    rhoA = uniformToRhoN(A, N)
     E = traceDistance(rhoB, rhoA)
 
     return E, A
