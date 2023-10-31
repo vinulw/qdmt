@@ -286,7 +286,7 @@ def gradLeftTermsAB(rhoB, A, l=None, r=None):
 
     return leftTerms
 
-def gradLeftTermsAA(A, l=None, r=None):
+def gradLeftTermsAA(A, N, l=None, r=None):
     """
     Calculate the value of the left gradient terms for $Tr(\rho_A \rho_A)$.
     """
@@ -295,7 +295,7 @@ def gradLeftTermsAA(A, l=None, r=None):
     if l is None or r is None:
         l, r = fixedPoints(A)
 
-    rhoA = uniformToRho(A, l, r)
+    rhoA = uniformToRhoN(A, N, l=l, r=r)
 
     return gradLeftTermsAB(rhoA, A, l, r)
 
@@ -366,14 +366,14 @@ def gradRightTermsAB(rhoB, A, l=None, r=None):
 
     return rightTerms
 
-def gradRightTermsAA(A, l=None, r=None):
+def gradRightTermsAA(A, N, l=None, r=None):
     """
     Calculate the value of the right terms for $Tr(\rho_A \rho_A)$.
     """
     if l is None or r is None:
         l, r = fixedPoints(A)
 
-    rhoA = uniformToRho(A, l, r)
+    rhoA = uniformToRhoN(A, N, l=l, r=r)
 
     return gradRightTermsAB(rhoA, A, l, r)
 
@@ -393,8 +393,8 @@ def gradient(rhoB, A, l=None, r=None):
     rightTerms = gradRightTermsAB(rhoB, A, l, r)
 
     centerTermsAA = gradCenterTermsAA(A, N, l, r)
-    leftTermsA = 2*gradLeftTermsAA(A, l, r)
-    rightTermsA = 2*gradRightTermsAA(A, l, r)
+    leftTermsA = 2*gradLeftTermsAA(A, N, l, r)
+    rightTermsA = 2*gradRightTermsAA(A, N, l, r)
 
     grad = centerTermsAA + leftTermsA + rightTermsA
     grad -= 2 * (centerTerms + leftTerms + rightTerms)
