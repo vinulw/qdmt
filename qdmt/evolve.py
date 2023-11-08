@@ -3,6 +3,7 @@ Helper functions to evolve uMPS states
 '''
 import numpy as np
 from ncon import ncon
+from uMPSHelpers import fixedPoints
 
 def genAContr(l0, p0, r0, s, N):
     lList = range(l0, s*N+l0, s)
@@ -52,6 +53,9 @@ def firstOrderTrotterEvolve(A, U1, U2, N, l=None, r=None):
     assert N % 2 == 0, 'N needs to be even'
     D, d, _ = A.shape
 
+    if l is None or r is None:
+        l, r = fixedPoints(A)
+
     U1ten = U1.reshape(d, d, d, d)
     U2ten = U2.reshape(d, d, d, d)
 
@@ -80,8 +84,5 @@ def firstOrderTrotterEvolve(A, U1, U2, N, l=None, r=None):
     tensors = [l, r] + [A]*(N+2) + [A.conj()]*(N+2) + [U1ten]*3 + [U2ten]*2 + [U1ten.conj()]*3 + [U2ten.conj()]*2
     contr = [lcontr, rcontr] + AContr + ADagContr + evenAContr
     contr += oddAContr + evenADagContr + oddADagContr
-
-    print(len(tensors))
-    print(contr)
 
     return ncon(tensors, contr)

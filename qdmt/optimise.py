@@ -7,6 +7,7 @@ from uMPSHelpers import fixedPoints
 from scipy.sparse.linalg import LinearOperator, gmres
 from functools import partial
 from copy import deepcopy
+from uMPSHelpers import normalizeMPS
 
 def uniformToRho(A, l=None, r=None):
 

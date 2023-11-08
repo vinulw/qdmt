@@ -529,23 +529,6 @@ def vumps(h, D, d, A0=None, tol=1e-5, tolFactor=1e-1, maxiter=100, verbose=False
             message_string = 'Success'
             break
 
-    # plt.plot(dists, label='dist')
-    # plt.plot(t1s, label='t1')
-    # plt.plot(t2s, label='t2')
-    # plt.plot(t3s, label='t3')
-    # plt.title('Trace distance')
-    # plt.legend()
-
-    plt.figure()
-    plt.title('Errors L')
-    plt.plot(errors, label='delta')
-    plt.plot(errorsL, label='eL')
-    plt.plot(errorsR, label='eR')
-    plt.legend()
-    plt.show()
-
-    # breakpoint()
-
     if message:
         return Al, Ac, Ar, C, message_string
 
