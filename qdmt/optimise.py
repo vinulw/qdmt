@@ -470,7 +470,7 @@ def optimiseDensityGradDescent(rhoB, D, eps=1e-1, A0=None, tol=1e-4, maxIter=1e4
     return E, A
 
 if __name__=="__main__":
-    from uMPSHelpers import createMPS, normalizeMPS
+    from uMPSHelpers import createMPS
     d, D = 2, 2
     A = createMPS(D, d)
     A = normalizeMPS(A)
