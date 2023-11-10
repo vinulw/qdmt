@@ -447,13 +447,13 @@ def optimiseDensityGradDescent(rhoB, D, eps=1e-1, A0=None, tol=1e-4, maxIter=1e4
         # do a step
         A = A - eps * g
         A = normalizeMPS(A)
-        i += 1
 
         if verbose and not(i % 50):
             #E = np.real(expVal2Uniform(h, A))
             rhoA = uniformToRhoN(A, N)
             E = traceDistance(rhoB, rhoA)
             print('iteration:\t{:d}\tdist:\t{:.12f}\tgradient norm:\t{:.4e}'.format(i, E, np.linalg.norm(g)))
+        i += 1
 
         # calculate new gradient
         g = gradient(rhoB, A)
