@@ -33,11 +33,18 @@ g1 = 1.5    # To prepare initial ground state
 g2 = 0.2    # For quench Hamiltonian
 
 dt = 0.1   # Time steps
-maxTime = 3 * dt # TODO Make this longer
+maxTime = 1.3
 
 D = 4   # Virtual dim
 d = 2   # Physical dim
 N = 4   # Number of sites for evolution
+
+# Optimisation config
+optConfig = {
+    'eps' : 1e-2,
+    'tol' : 1e-5,
+    'maxIter' : 5e2
+}
 
 # Saving info
 save_dir = f'./data/{now}/'
@@ -53,7 +60,8 @@ config = {
     'maxTime': maxTime,
     'D': D,
     'd': d,
-    'N': 4
+    'N': 4,
+    'optConfig': optConfig
 }
 
 fname = path.join(save_dir, 'config.json')
@@ -103,7 +111,9 @@ for t in tqdm(tRange[1:]):
     with contextlib.redirect_stdout(logger):
         print(f'Optimisation at t={t:.3f}')
         rhotdt = firstOrderTrotterEvolve(At, U, U, N) # Evolve the state
-        error, Atdt = optimiseDensityGradDescent(rhotdt, D, eps=1e-2, A0=At, tol=1e-5, maxIter=1e2)
+        error, Atdt = optimiseDensityGradDescent(
+            rhotdt, D, eps=optConfig['eps'], A0=At,
+            tol=optConfig['tol'], maxIter=optConfig['maxIter'])
 
     Ats.append(Atdt)
     errors.append(error)
