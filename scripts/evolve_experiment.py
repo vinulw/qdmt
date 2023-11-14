@@ -13,6 +13,8 @@ logging.getLogger('PIL.PngImagePlugin').setLevel(logging.WARNING)
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import contextlib
+from os import path, makedirs
+import json
 
 from datetime import datetime
 
@@ -22,7 +24,7 @@ from evolve import firstOrderTrotterEvolve
 from optimise import optimiseDensityGradDescent
 from logOutput import OutputLogger
 
-
+now = datetime.now().strftime('%d%m%Y-%H%M%S') # For file saving
 ###############################################################################
 # Prepare some hyper parameters
 ###############################################################################
@@ -36,6 +38,27 @@ maxTime = 3 * dt # TODO Make this longer
 D = 4   # Virtual dim
 d = 2   # Physical dim
 N = 4   # Number of sites for evolution
+
+# Saving info
+save_dir = f'./data/{now}/'
+saveAs = True
+if not path.exists(save_dir):
+    makedirs(save_dir)
+
+# Save config
+config = {
+    'g1': g1,
+    'g2': g2,
+    'dt': dt,
+    'maxTime': maxTime,
+    'D': D,
+    'd': d,
+    'N': 4
+}
+
+fname = path.join(save_dir, 'config.json')
+with open(fname, 'w') as f:
+    json.dump(config, f)
 
 assert N%2 == 0, 'N has to be even'
 
@@ -52,6 +75,7 @@ A0 = Al     # Groundstate tensor
 ###############################################################################
 # Perform the time evolution
 ###############################################################################
+
 print('Initialising time evolution...')
 h2 = TransverseIsing(1, g2, 2)
 U = la.expm(-1j*h2*dt).reshape(d, d, d, d)
@@ -62,11 +86,15 @@ Ats = [A0]
 errors = []
 At = A0
 
+if saveAs:
+    fname = path.join(save_dir, 'A_t0-00.npy')
+    np.save(fname, A0)
+
 print('Performing time evolution...')
 
 # Prepare logger
-now = datetime.now().strftime('%d%m%Y-%H%M%S')
 fname = f'{now}-evolve_exp.log'
+fname = path.join(save_dir, fname)
 format = '%(asctime)s - %(levelname)s - %(message)s'
 logger = OutputLogger('evLogger', 'DEBUG', fname=fname, format=format)
 
@@ -81,7 +109,11 @@ for t in tqdm(tRange[1:]):
     errors.append(error)
 
     At = Atdt
+    if saveAs:
+        fname = path.join(save_dir, f'A_t{t:.02f}'.replace('.', '-') + '.npy')
+        np.save(fname, At)
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG)    # Reset the logging
 plt.plot(tRange[1:], errors)
-plt.show()
+fname = path.join(save_dir, 'error_plot.png')
+plt.savefig(fname)
