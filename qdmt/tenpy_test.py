@@ -10,6 +10,9 @@ from analyse import exact_overlap
 from loschmidt import loschmidt_paper
 
 from tqdm import tqdm
+from datetime import datetime
+from pathlib import Path
+import json
 
 class TFIModel(CouplingMPOModel):
     r"""Transverse field Ising model on a general lattice. This is modified from the `TFIModel` defined in tenpy to swap the coupling and interaction Pauli basis.
@@ -68,6 +71,7 @@ class TFIChain(TFIModel, NearestNeighborModel):
     force_default_lattice = True
 
 if __name__=="__main__":
+    now = datetime.now().strftime('%d%m%Y-%H%M%S') # For file saving
     # ######################################################################
     # # Example using iDMRG for ground state sweep
     # ######################################################################
@@ -101,6 +105,7 @@ if __name__=="__main__":
     ######################################################################
     g1 = 1.5
     g2 = 0.2
+    D = 4
 
     dt = 0.1
     maxTime = 1.3
@@ -108,9 +113,27 @@ if __name__=="__main__":
     dtTEBD = dt / stepsPerDt
 
     # Save generated As
-    savePath = None
+    savePath = '../scripts/data/tenpy_timeev'
 
-    D = 4
+    # Make sure save directory exists
+    if savePath is not None:
+        savePath = Path(savePath)
+        if not savePath.exists():
+            savePath.mkdir(parents=True)
+
+    # Save the config variables
+    config = {
+        'g1': g1,
+        'g2': g2,
+        'dt': dt,
+        'D': D
+    }
+
+    configfName = f'{now}_config.json'
+
+    with open(savePath / configfName, 'w') as f:
+        json.dump(config, f)
+
     # Prepare the ground state
     print('Preparing ground state')
     M1 = TFIChain({"L": 2, "J": 1., "g": g1, "bc_MPS": "infinite"})
@@ -146,7 +169,9 @@ if __name__=="__main__":
 
     # Save the generated As
     if savePath is not None:
-        np.save(Ats, savePath)
+        fname = str(savePath / f'{now}-Ats.npy')
+        print(f'Saving as : {fname}')
+        np.save(fname, Ats)
 
     # Analyse the results
     loschmidt = []
