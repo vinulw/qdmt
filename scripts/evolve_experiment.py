@@ -20,7 +20,7 @@ from datetime import datetime
 
 from hamiltonian import TransverseIsing
 from vumps import vumps
-from evolve import firstOrderTrotterEvolve
+from evolve import firstOrderTrotterEvolveTransposed
 from optimise import optimiseDensityGradDescent
 from logOutput import OutputLogger
 
@@ -110,7 +110,7 @@ for t in tqdm(tRange[1:]):
     # Send output of optimisation to log file
     with contextlib.redirect_stdout(logger):
         print(f'Optimisation at t={t:.3f}')
-        rhotdt = firstOrderTrotterEvolve(At, U, U, N) # Evolve the state
+        rhotdt = firstOrderTrotterEvolveTransposed(At, U, U, N) # Evolve the state
         error, Atdt = optimiseDensityGradDescent(
             rhotdt, D, eps=optConfig['eps'], A0=At,
             tol=optConfig['tol'], maxIter=optConfig['maxIter'])
@@ -127,3 +127,5 @@ logging.basicConfig(level=logging.DEBUG)    # Reset the logging
 plt.plot(tRange[1:], errors)
 fname = path.join(save_dir, 'error_plot.png')
 plt.savefig(fname)
+
+print(f'Written output to: {save_dir}')

@@ -16,8 +16,10 @@ from analyse import exact_overlap
 ###############################################################################
 
 print('Loading data...')
-dmtDataDir = Path('./data/14112023-114548/')
+dmtDataDir = Path('./data/21112023-144130/')
 iTEBDdata = Path('./data/tenpy_timeev/20112023-151759-Ats.npy')
+
+saveFig = True
 
 # Load the DMT tensors
 AsDmt = []
@@ -46,6 +48,11 @@ for i in range(min((len(AsDmt), len(AsTenpy)))):
 plt.plot(tsDmt, overlaps, '.')
 plt.xlabel('Time')
 plt.ylabel('Overlap with iTEBD')
+figPath = dmtDataDir / 'compare_itebd.png'
+
+if saveFig:
+    plt.savefig(figPath)
+
 plt.show()
 
 

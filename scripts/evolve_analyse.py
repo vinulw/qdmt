@@ -6,17 +6,28 @@ import os
 import re
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+from pathlib import Path
+import json
+
+from loschmidt import loschmidt_paper
 
 
 ###############################################################################
 # Load data for analysis
 ###############################################################################
 print('Loading files...')
-dataDir = './data/14112023-114548/'
+dataDir = Path('./data/21112023-144130/')
 dataFiles = os.listdir(dataDir)
 
+print(dataFiles)
 pattern = re.compile(r'A_t\d-\d{2}.npy')
 dataFiles = [f for f in dataFiles if pattern.search(f)]
+
+saveFig = True
+
+configFile = Path(dataDir) / 'config.json'
+with open(configFile, 'r') as cFile:
+    config = json.load(cFile)
 
 ts = []
 As = []
@@ -48,14 +59,28 @@ N = 4 # N sites for TrAB
 
 print('Calculating Losch...')
 for A in tqdm(As):
-    sLs = exact_overlap(A0, A)
-    dLs = np.real(TrAB(A0, A, N))
+    sLs = -1*np.log(exact_overlap(A0, A)**2)
+    dLs = -1*np.log(np.real(TrAB(A0, A, N)))
 
     stateLosch.append(sLs)
     densityLosch.append(dLs)
 
-plt.plot(ts, stateLosch, label='State Losch')
-plt.plot(ts, densityLosch, label='Density Losch')
+# Prepare analytic
+maxTime = ts[-1] + ts[1] - ts[0]
+analyticsTs = np.linspace(0, maxTime, 250)
+analyticLoschmidt = [np.real(loschmidt_paper(
+                    t, config['g1'], config['g2'])) for t in analyticsTs]
+
+plt.plot(analyticsTs, analyticLoschmidt, '--', label='Analytic' )
+plt.plot(ts, stateLosch, 'x', label='State Losch')
+plt.xlabel('Time Step')
+plt.ylabel('Loschmidt Echo')
+# plt.plot(ts, densityLosch, label='Density Losch')
 plt.legend()
+
+if saveFig:
+    figPath = dataDir / 'loschmidt.png'
+    plt.savefig(figPath)
+
 plt.show()
 
