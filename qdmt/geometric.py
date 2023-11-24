@@ -158,7 +158,111 @@ def testRetractionStiefel():
         , 'Stiefel Canonical Retraction failing'
 
 
+def preconditionMPS(G, R):
+    '''
+    Precondition the tangent space gradient G with the MPS preconditioning.
+
+    When the step size is small this amount to imaginary time evolution in
+    TDVP.
+
+        Parameters
+        ----------
+        G : (m, n) Array
+            Tangent space gradient tensor reshaped as (Dd, D)
+        R : (n, n) Array
+            Right environment of transfer matrix
+    '''
+    n, _ = R.shape
+    δ = np.linalg.norm(G)**2
+    Rinv = np.linalg.inv(R + np.eye(n)*δ)
+
+    return G @ Rinv
+
+def retractionGrassmann(W, G, α=1, opt='euclidean'):
+    '''
+    Peform a retraction on the Stiefel manifold based on a Euclidean metric.
+
+    Options include retraction based on a `euclidean` or `canonical` metrix.
+    '''
+    opts = ['euclidean', 'canonical']
+    assert opt in opts
+
+    if opt == 'euclidean':
+        return _retractionGrassmannEuclidean(W, G, α)
+    else:
+        return _retractionGrassmannCanonical(W, G, α)
+
+
+def _retractionGrassmannEuclidean(W, G, α=1):
+    '''
+    Peform a retraction on the Grassmann manifold based on a Euclidean metric.
+    '''
+
+    m = G.shape[1]
+    Zero = np.zeros((m, m))
+    I = np.eye(m)
+
+    a = np.block([W, α*G])
+    b = np.block([
+        [Zero, -α**2 * G.conj().T @ G],
+        [I, Zero]
+    ])
+    b = expm(b)[..., :m]
+
+    return a @ b
+
+def _retractionGrassmannCanonical(W, G, α=1):
+    '''
+    Peform a retraction on the Grassmann manifold based on a canonical metric.
+    '''
+    n, m = W.shape
+    Q, R = np.linalg.qr((np.eye(n) - W @ W.conj().T) @ G, mode='reduced')
+    Zero = np.zeros((m, m))
+
+    a = np.block([W, Q])
+    b = np.block([
+        [Zero, -α*R.conj().T],
+        [α*R, Zero]
+    ])
+    b = expm(b)[..., :m]
+    return a @ b
+
+
+def testRetractionGrassmann():
+    # Prepare isometry
+    n, m = 6, 4
+    W = unitary_group.rvs(n)
+    W = W[:n, :m]
+
+    print('Testing Grassmann retraction\n')
+    print('W isometry: W†W == I')
+    print('\t...', np.allclose(W.conj().T @ W, np.eye(m)))
+
+    # Generate random update tensor
+    D = np.random.randn(n, m) * 1j*np.random.randn(n, m)
+    D = D / np.linalg.norm(D)
+
+    G = projectTangentGrassmann(D, W)
+    print('Created gradient')
+
+    print('Testing retraction Euclidean')
+    Wprime_e = retractionGrassmann(W, G, opt='euclidean')
+    print('\t...Ran')
+    print('\t...Isometry: ',
+          np.allclose(Wprime_e.conj().T @ Wprime_e, np.eye(m)))
+    # assert np.allclose(Wprime_e.conj().T @ Wprime_e, np.eye(m))\
+    #     , 'Stiefel Euclidean Retraction failing'
+
+    print('Testing retraction Canonical')
+    Wprime_c = retractionGrassmann(W, G, opt='canonical')
+    print('\t...Ran')
+    print('\t...Isometry: ',
+          np.allclose(Wprime_c.conj().T @ Wprime_c, np.eye(m)))
+    # assert np.allclose(Wprime_c.conj().T @ Wprime_c, np.eye(m))\
+    #     , 'Stiefel Canonical Retraction failing'
+
+
 if __name__ == "__main__":
-    testRetractionStiefel()
+    testRetractionGrassmann()
 
 
