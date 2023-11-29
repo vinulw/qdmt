@@ -8,6 +8,10 @@ from scipy.sparse.linalg import LinearOperator, gmres
 from functools import partial
 from copy import deepcopy
 from uMPSHelpers import normalizeMPS
+from geometric import projectTangentGrassmann, retractionGrassmann
+from geometric import preconditionMPS
+
+from test import isLeftCanonical
 
 def uniformToRho(A, l=None, r=None):
 
@@ -422,7 +426,18 @@ def gradient(rhoB, A, l=None, r=None):
 
     return grad
 
-def optimiseDensityGradDescent(rhoB, D, eps=1e-1, A0=None, tol=1e-4, maxIter=1e4, verbose=True):
+def uniformEuclideanUpdate(A, G, alpha):
+    '''
+    Standard gradient descent update for general uMPS.
+    '''
+    Aprime = A - alpha*G
+    return normalizeMPS(Aprime)
+
+
+def optimiseDensityGradDescent(rhoB, D, eps=1e-1, A0=None, tol=1e-4,
+                               maxIter=1e4, verbose=True,
+                               updateFunc=uniformEuclideanUpdate,
+                               processGradient=None):
     """
     Find the tensor $A$ to optimise $Tr[(\rho_A - \rho_B)^2]$ using gradient descent.
 
@@ -445,8 +460,7 @@ def optimiseDensityGradDescent(rhoB, D, eps=1e-1, A0=None, tol=1e-4, maxIter=1e4
 
     while not(np.linalg.norm(g) < tol):
         # do a step
-        A = A - eps * g
-        A = normalizeMPS(A)
+        A = updateFunc(A, g, eps)
 
         if verbose and not(i % 50):
             #E = np.real(expVal2Uniform(h, A))
@@ -457,6 +471,9 @@ def optimiseDensityGradDescent(rhoB, D, eps=1e-1, A0=None, tol=1e-4, maxIter=1e4
 
         # calculate new gradient
         g = gradient(rhoB, A)
+
+        if processGradient is not None:
+            g = processGradient(g, A)
 
         if i > maxIter:
             print('Warning: gradient descent did not converge!')
@@ -469,7 +486,37 @@ def optimiseDensityGradDescent(rhoB, D, eps=1e-1, A0=None, tol=1e-4, maxIter=1e4
 
     return E, A
 
-if __name__=="__main__":
+
+def gradDescentGrassmannCanonical(rhoB, D, eps=1e-1, A0=None, tol=1e-4,
+                               maxIter=1e4, verbose=True):
+    d = 2
+    def updateFunc(A, G, eps):
+        Gmat = G.reshape(D*d, D)
+
+        # # Apply preconditoning
+        # _, r = fixedPoints(A)
+        # Gmat = preconditionMPS(Gmat, r)
+
+        WA = A.reshape(D*d, D)
+        Aprime = retractionGrassmann(WA, -Gmat, eps, opt='canonical')
+
+        Aprime = Aprime.reshape(D, d, D)
+        return normalizeMPS(Aprime)
+
+    def processGradient(g, A):
+        Gmat = g.reshape(D*d, D)
+        WA = A.reshape(D*d, D)
+
+        Gmat = projectTangentGrassmann(Gmat, WA)
+        return Gmat.reshape(D, d, D)
+
+    E, A = optimiseDensityGradDescent(rhoB, D, eps, A0, tol, maxIter, verbose,
+                                      updateFunc=updateFunc,
+                                      processGradient=processGradient)
+    return E, A
+
+
+if __name__ == "__main__":
     from uMPSHelpers import createMPS
     d, D = 2, 2
     A = createMPS(D, d)

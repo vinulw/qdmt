@@ -22,7 +22,9 @@ from hamiltonian import TransverseIsing
 from vumps import vumps
 from evolve import firstOrderTrotterEvolveTransposed
 from optimise import optimiseDensityGradDescent
+from optimise import gradDescentGrassmannCanonical
 from logOutput import OutputLogger
+from test import isLeftCanonical
 
 now = datetime.now().strftime('%d%m%Y-%H%M%S') # For file saving
 ###############################################################################
@@ -33,7 +35,7 @@ g1 = 1.5    # To prepare initial ground state
 g2 = 0.2    # For quench Hamiltonian
 
 dt = 0.1   # Time steps
-maxTime = 1.3
+maxTime = dt*3
 
 D = 4   # Virtual dim
 d = 2   # Physical dim
@@ -43,12 +45,13 @@ N = 4   # Number of sites for evolution
 optConfig = {
     'eps' : 1e-2,
     'tol' : 1e-5,
-    'maxIter' : 5e2
+    'maxIter' : 5e2,
+    'note': 'Uniform Update'
 }
 
 # Saving info
 save_dir = f'./data/{now}/'
-saveAs = True
+saveAs = False
 if not path.exists(save_dir):
     makedirs(save_dir)
 
@@ -78,7 +81,9 @@ h1 = TransverseIsing(1, g1, 2).reshape(d, d, d, d)
 Al, Ac, Ar, C = vumps(h1, D, d, A0=None, tol=1e-8, tolFactor=1e-2,
                         verbose=False)
 print('\tCompleted.')
-A0 = Al     # Groundstate tensor
+A0 = Al     # Groundstate tensor (already left canonical)
+
+print('A0 Left Canonical? : ', isLeftCanonical(A0))
 
 ###############################################################################
 # Perform the time evolution
@@ -111,6 +116,9 @@ for t in tqdm(tRange[1:]):
     with contextlib.redirect_stdout(logger):
         print(f'Optimisation at t={t:.3f}')
         rhotdt = firstOrderTrotterEvolveTransposed(At, U, U, N) # Evolve the state
+        # error, Atdt = gradDescentGrassmannCanonical(
+        #     rhotdt, D, eps=optConfig['eps'], A0=At,
+        #     tol=optConfig['tol'], maxIter=optConfig['maxIter'])
         error, Atdt = optimiseDensityGradDescent(
             rhotdt, D, eps=optConfig['eps'], A0=At,
             tol=optConfig['tol'], maxIter=optConfig['maxIter'])
