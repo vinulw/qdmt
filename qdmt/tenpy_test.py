@@ -105,15 +105,17 @@ if __name__=="__main__":
     ######################################################################
     g1 = 1.5
     g2 = 0.2
-    D = 4
+    Dmin = 4
+    Dmax = int(1e4)
 
     dt = 0.1
-    maxTime = 1.3
+    maxTime = 5.0
     stepsPerDt = 10
     dtTEBD = dt / stepsPerDt
 
     # Save generated As
     savePath = '../scripts/data/tenpy_timeev'
+    # savePath = None
 
     # Make sure save directory exists
     if savePath is not None:
@@ -126,27 +128,37 @@ if __name__=="__main__":
         'g1': g1,
         'g2': g2,
         'dt': dt,
-        'D': D
+        'maxTime': maxTime,
+        'stepsPerDt': stepsPerDt,
+        'Dmin': Dmin,
+        'Dmax': Dmax,
     }
 
     configfName = f'{now}_config.json'
 
-    with open(savePath / configfName, 'w') as f:
-        json.dump(config, f)
+    if savePath is not None:
+        with open(savePath / configfName, 'w') as f:
+            json.dump(config, f)
 
     # Prepare the ground state
     print('Preparing ground state')
     M1 = TFIChain({"L": 2, "J": 1., "g": g1, "bc_MPS": "infinite"})
-    psi = MPS.from_product_state(M1.lat.mps_sites(), [0]*2, "infinite")
-    dmrg_params = {"trunc_params": {"chi_max": D, "svd_min": 1.e-10}}
+    psi = MPS.from_product_state([SpinHalfSite(None)], [0], "infinite")
+    psi.enlarge_mps_unit_cell(factor=2)
+
+    dmrg_params = {"trunc_params": {"chi_max": Dmin, "svd_min": 1.e-10}}
 
     dmrg.run(psi, M1, dmrg_params)  # Find the ground state
+
     e = sum(psi.expectation_value(M1.H_bond))/psi.L
     print(f'\tGround state energy: {e}')
 
     # Run the evolution
-    psi0 = psi.copy()
-    A0 = psi.get_B(0, copy=True).to_ndarray()
+    print('Checking if we can form a single psi')
+
+    A0 = psi.get_B(0, form='B', copy=True).to_ndarray()
+    A1 = psi.get_B(1, form='B', copy=True).to_ndarray()
+    Ats = [[A0, A1]]
 
     M2 = TFIChain({"L": 2, "J": 1., "g": g2, "bc_MPS": "infinite"})
     tebd_params = {
@@ -154,37 +166,24 @@ if __name__=="__main__":
         'dt' : dtTEBD,
         'N_steps': stepsPerDt,
         'trunc_params': {
-            'chi_max': D,
-            'chi_min': D
+            'chi_max': Dmax,
+            'chi_min': Dmin,
+            'svd_min': 1e-12
         }
     }
     tebdEngine = tebd.TEBDEngine(psi, M2, tebd_params)
-    Ats = [A0]
     ts = np.arange(0, maxTime, dt)
     print('Performing evolution...')
     for t in tqdm(ts[1:]):
         tebdEngine.run()
-        At = tebdEngine.psi.get_B(0, copy=True).to_ndarray()
-        Ats.append(At)
+        # Set `form=C` for symmetric form
+        At0 = tebdEngine.psi.get_B(0, form='C', copy=True).to_ndarray()
+        At1 = tebdEngine.psi.get_B(1, form='C', copy=True).to_ndarray()
+        Ats.append([At0, At1])
+        tqdm.write(f'Time {t} shapes: {At0.shape} ; {At1.shape}')
 
     # Save the generated As
     if savePath is not None:
         fname = str(savePath / f'{now}-Ats.npy')
         print(f'Saving as : {fname}')
         np.save(fname, Ats)
-
-    # Analyse the results
-    loschmidt = []
-    for A in tqdm(Ats):
-        print(A.shape)
-        ls = exact_overlap(A0, A)
-        ls = -1*np.log(ls**2)
-        loschmidt.append(ls)
-
-    analyticsts = np.linspace(0, maxTime, 250)
-    analyticLoschmidt = [np.real(loschmidt_paper(t, g1, g2)) for t in analyticsts]
-
-    plt.plot(analyticsts, analyticLoschmidt, '--', label='analytic')
-    plt.plot(ts, loschmidt, 'x', label='iTEBD')
-    plt.legend()
-    plt.show()
