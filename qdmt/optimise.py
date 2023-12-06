@@ -492,9 +492,9 @@ def gradDescentGrassmannCanonical(rhoB, D, eps=1e-1, A0=None, tol=1e-4,
     def updateFunc(A, G, eps):
         Gmat = G.reshape(D*d, D)
 
-        # # Apply preconditoning
-        # _, r = fixedPoints(A)
-        # Gmat = preconditionMPS(Gmat, r)
+        # Apply preconditoning
+        _, r = fixedPoints(A)
+        Gmat = preconditionMPS(Gmat, r)
 
         WA = A.reshape(D*d, D)
         Aprime = retractionGrassmann(WA, -Gmat, eps, opt='canonical')
