@@ -189,7 +189,7 @@ def sumLeft(AL, C, h, tol=1e-8):
     A = LinearOperator((D**2, D**2), matvec=mvec)
 
 
-    Lh = gmres(A, b, tol=tol)[0]
+    Lh, _ = gmres(A, b, tol=tol)
 
     return Lh
 
@@ -227,7 +227,7 @@ def sumRight(AR, C, h, tol=1e-8):
     mvec = lambda v: A_ @ v
     A = LinearOperator((D**2, D**2), matvec=mvec)
 
-    Rh = gmres(A, b, tol=tol)[0]
+    Rh, _ = gmres(A, b, tol=tol)
     return Rh
 
 def construct_CMap(Al, Ar, h, LH, RH):
@@ -395,6 +395,29 @@ def minAcCPolar(AcTilde, CTilde, tol=1e-5):
 
     return Al, Ac, Ar, C
 
+def minAcCPolar2(AcTilde, CTilde, tol=1e-5):
+    D, d, _ = AcTilde.shape
+    tol = max(tol, 1e-14)
+
+    Ul_Ac, _ = polar(AcTilde.reshape(D*d, D), side='left')
+    Ul_C, _ = polar(CTilde, side='left')
+
+    Al = (Ul_Ac @ (Ul_C.conj().T)).reshape(D, d, D)
+
+    Ur_Ac, _ = polar(AcTilde.reshape(D, d*D), side='right')
+    Ur_C, _ = polar(CTilde, side='right')
+
+    Ar = (Ur_C.conj().T @ Ur_Ac).reshape(D, d, D)
+
+    C = CTilde
+    norm = np.trace(C @ C.conj().T) # normalise state
+    C = C / np.sqrt(norm)
+
+    Ac = AcTilde
+    # Ac = ncon([Al, C], ((-1, -2, 1), (1, -3)))
+
+    return Al, Ac, Ar, C
+
 def errorL(hTilde, Al, Ac, Ar, C, Lh, Rh):
     """
     Calculate ϵL to check for convergence.
@@ -422,7 +445,7 @@ def tensorOperator(O, d=2):
     return OTen
 
 
-def vumps(h, D, d, A0=None, tol=1e-5, tolFactor=1e-1, maxiter=100, verbose=False, callback=None):
+def vumps(h, D, d, A0=None, tol=1e-5, tolFactor=1e-1, maxiter=100, verbose=False, callback=None, message=False, M_opt=None):
     '''
     Perform vumps to optimise local hamiltonian h.
     '''
@@ -436,6 +459,20 @@ def vumps(h, D, d, A0=None, tol=1e-5, tolFactor=1e-1, maxiter=100, verbose=False
     delta = tol*1e-2
     count = 0
 
+    message_string = 'Maximum iteration reached'
+
+    # dists = np.zeros(maxiter+1)
+    # t1s = np.zeros(maxiter+1)
+    # t2s = np.zeros(maxiter+1)
+    # t3s = np.zeros(maxiter+1)
+    errors = np.zeros(maxiter)
+    errorsL = np.zeros(maxiter)
+    errorsR = np.zeros(maxiter)
+    # t1, t2, t3, dist = trace_distance(Al, C, Ar, M_opt)
+    # dists[0] = dist
+    # t1s[0] = t1
+    # t2s[0] = t2
+    # t3s[0] = t3
     while maxiter > count:
         count += 1
 
@@ -443,31 +480,87 @@ def vumps(h, D, d, A0=None, tol=1e-5, tolFactor=1e-1, maxiter=100, verbose=False
         hTilde = rescaledHnMixed(h, Ac, Ar)
 
         # Calculate the environments
+        #print('Summing Left')
         Lh = sumLeft(Al, C,  hTilde, tol=tolFactor*delta).reshape(D, D)
+        #print('Summing right')
         Rh = sumRight(Ar, C, hTilde, tol=tolFactor*delta).reshape(D, D)
 
         # Update Ac
+        #print('Updating Ac')
         AcTilde = update_Ac(hTilde, Al, Ac, Ar, C, Lh, Rh, tol=tolFactor*delta)
         # Update C
+        #print('Updating C')
         CTilde = update_C(hTilde, Al, Ac, Ar, C, Lh, Rh, tol=tolFactor*delta)
 
         # Find update tensors
-        Al, Ac, Ar, C = minAcCPolar(AcTilde, CTilde, tol=delta*tolFactor**2)
+        #print('minAcCPolar')
+        # Al, Ac, Ar, C = minAcCPolar(AcTilde, CTilde, tol=delta*tolFactor**2)
+
+        Al, Ac, Ar, C = minAcCPolar2(AcTilde, CTilde, tol=delta*tolFactor**2)
 
         # Calculate errorL
+        Lh = sumLeft(Al, C,  hTilde, tol=tolFactor*delta).reshape(D, D)
+        Rh = sumRight(Ar, C, hTilde, tol=tolFactor*delta).reshape(D, D)
         delta = errorL(hTilde, Al, Ac, Ar, C, Lh, Rh)
+        eL = np.linalg.norm(Ac - ncon([Al, C], ((-1, -2, 1), (1, -3)) ))
+        eR = np.linalg.norm(Ac - ncon([C, Ar], ((-1, 1), (1, -2, -3)) ))
+        E = np.real(expValNMixed(hTilde, Ac, Ar))
+        # t1, t2, t3, dist = trace_distance(Al, C, Ar, M_opt)
+
+        # dists[count] = dist
+        # t1s[count] = t1
+        # t2s[count] = t2
+        # t3s[count] = t3
+        errors[count-1] = delta
+        errorsL[count-1] = eL
+        errorsR[count-1] = eR
+
         if verbose:
-            E = np.real(expValNMixed(h, Ac, Ar))
             print(f'iteration: {count}')
             print(f'   energy: {E}')
-            print(f'   errorL: {delta}')
+            print(f'   error: {delta}')
+            print(f'   errorL: {eL}')
+            print(f'   errorR: {eR}')
+            # print(f'   tr_dist: {dist}')
 
         if callback is not None:
-            callback(count, Al, Ac, Ar, C, hTilde, Lh, Rh)
+            callback(count, [Al, Ac, Ar, C, hTilde, Lh, Rh], delta, E)
         if delta < tol:
+            message_string = 'Success'
             break
 
+    if message:
+        return Al, Ac, Ar, C, message_string
+
     return Al, Ac, Ar, C
+
+def trace_distance(Al, C, Ar, rho):
+    edges = [
+            (1, -1, 2), (1, -3, 3),
+            (2, 4), (3, 5),
+            (4, -2, 6), (5, -4, 6)
+            ]
+    tensors = [Al, Al.conj(),
+               C, C.conj(),
+               Ar, Ar.conj()]
+
+    rho_prime = ncon(tensors, edges)
+
+    rho = rho.reshape(4, 4)
+    rho_prime = rho_prime.reshape(4, 4)
+
+    dist = rho - rho_prime
+
+    # Split into term
+    T1 = np.real(np.trace(rho_prime.conj().T @ rho_prime))
+    T2 = np.real(np.trace(rho_prime.conj().T @ rho))
+    T3 = np.real(np.trace(rho.conj().T @ rho))
+
+    dist =  np.real(np.trace(dist @ dist.conj().T))
+    dist_ = T1 - 2*T2 + T3
+
+    return T1, -2*T2, T3, dist
+
 
 def generate_ρ(Al, Ar, C, N):
 
@@ -494,18 +587,31 @@ def generate_ρ(Al, Ar, C, N):
 if __name__ == "__main__":
     DnQbPairs = [
             [2, 2],
-            [2, 3],
-            [2, 4],
-            [4, 2],
-            [8, 2],
-            [4, 4],
-            [8, 4]
+#              [2, 3],
+#              [2, 4],
+#              [4, 2],
+#              [8, 2],
+#              [4, 4],
+#              [8, 4]
             ]
     d = 2
-    save=True
+    save = False
+    plot = True
+    load = False
+
+    exactFile = 'data/exact_gs_energy.csv'
+
 
     n = 16
     g_range = np.linspace(0.1, 1.7, n)
+
+    plt.rcParams['text.usetex'] = True
+    plt.rcParams.update({'font.size': 14})
+    plt.title(f'Ground state optimisation')
+
+    if plot and exactFile is not None:
+        g_exact, e_exact = np.loadtxt(exactFile, delimiter=',')
+        plt.plot(g_exact, e_exact, label=f'Exact')
 
     for D, nQb in DnQbPairs:
         print(f'Current D: {D}')
@@ -517,7 +623,7 @@ if __name__ == "__main__":
 
         fname = f'gstate_ising2_D{D}_qb{nQb}.npy'
         skip = False
-        if os.path.exists(fname):
+        if os.path.exists(fname) and load:
             Es = np.load(fname)
             print(f'File found: {fname}\nSkipping...')
             skip = True
@@ -527,7 +633,7 @@ if __name__ == "__main__":
                 H = TransverseIsing(1, g, nQb)
                 h = tensorOperator(H, d=d)
 
-                Al, Ac, Ar, C = vumps(h, D, d, A0=A, tol=1e-8, tolFactor=1e-2, verbose=False)
+                Al, Ac, Ar, C = vumps(h, D, d, A0=A, tol=1e-8, tolFactor=1e-2, verbose=True)
 
                 H2 = TransverseIsing(1, g, 2)
                 h2 = tensorOperator(H2, d=d)
@@ -538,12 +644,12 @@ if __name__ == "__main__":
             if save:
                 np.save(fname, Es)
 
-    #plt.rcParams['text.usetex'] = True
-    #plt.rcParams.update({'font.size': 14})
-    #plt.title(f'Ground state optimisation, nQB:{nQb}, D:{D}')
-    #plt.ylabel(r'$<\psi|h|\psi>$')
-    #plt.xlabel('g')
-    #plt.plot(g_range, Es, label='VUMPS')
-    ## plt.legend()
-    #plt.show()
+        if plot:
+            plt.plot(g_range, Es, label=f'nQB:{nQb}, D:{D}')
+
+    if plot:
+        plt.ylabel(r'$<\psi|h|\psi>$')
+        plt.xlabel('g')
+        plt.legend()
+        plt.show()
 
