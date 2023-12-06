@@ -24,7 +24,6 @@ from evolve import firstOrderTrotterEvolveTransposed
 from optimise import optimiseDensityGradDescent
 from optimise import gradDescentGrassmannCanonical
 from logOutput import OutputLogger
-from test import isLeftCanonical
 
 now = datetime.now().strftime('%d%m%Y-%H%M%S') # For file saving
 ###############################################################################
@@ -83,8 +82,6 @@ Al, Ac, Ar, C = vumps(h1, D, d, A0=None, tol=1e-8, tolFactor=1e-2,
 print('\tCompleted.')
 A0 = Al     # Groundstate tensor (already left canonical)
 
-print('A0 Left Canonical? : ', isLeftCanonical(A0))
-
 ###############################################################################
 # Perform the time evolution
 ###############################################################################
@@ -116,12 +113,12 @@ for t in tqdm(tRange[1:]):
     with contextlib.redirect_stdout(logger):
         print(f'Optimisation at t={t:.3f}')
         rhotdt = firstOrderTrotterEvolveTransposed(At, U, U, N) # Evolve the state
-        # error, Atdt = gradDescentGrassmannCanonical(
-        #     rhotdt, D, eps=optConfig['eps'], A0=At,
-        #     tol=optConfig['tol'], maxIter=optConfig['maxIter'])
-        error, Atdt = optimiseDensityGradDescent(
+        error, Atdt = gradDescentGrassmannCanonical(
             rhotdt, D, eps=optConfig['eps'], A0=At,
             tol=optConfig['tol'], maxIter=optConfig['maxIter'])
+        # error, Atdt = optimiseDensityGradDescent(
+        #     rhotdt, D, eps=optConfig['eps'], A0=At,
+        #     tol=optConfig['tol'], maxIter=optConfig['maxIter'])
 
     Ats.append(Atdt)
     errors.append(error)

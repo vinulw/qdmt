@@ -11,7 +11,6 @@ from uMPSHelpers import normalizeMPS
 from geometric import projectTangentGrassmann, retractionGrassmann
 from geometric import preconditionMPS
 
-from test import isLeftCanonical
 
 def uniformToRho(A, l=None, r=None):
 
