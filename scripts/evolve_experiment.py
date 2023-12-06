@@ -34,7 +34,7 @@ g1 = 1.5    # To prepare initial ground state
 g2 = 0.2    # For quench Hamiltonian
 
 dt = 0.1   # Time steps
-maxTime = dt*3
+maxTime = 5.0
 
 D = 4   # Virtual dim
 d = 2   # Physical dim
@@ -45,7 +45,7 @@ optConfig = {
     'eps' : 1e-2,
     'tol' : 1e-5,
     'maxIter' : 5e2,
-    'note': 'Uniform Update'
+    'note': 'Long evolution Grassmann with preconditoning update'
 }
 
 # Saving info
