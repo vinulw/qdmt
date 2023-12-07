@@ -50,7 +50,7 @@ optConfig = {
 
 # Saving info
 save_dir = f'./data/{now}/'
-saveAs = False
+saveAs = True
 if not path.exists(save_dir):
     makedirs(save_dir)
 
