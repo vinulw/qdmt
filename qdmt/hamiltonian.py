@@ -72,6 +72,31 @@ def TransverseIsing(J, g, n):
     return h
 
 
+def exact_thermal_energy(J, g, T):
+    """
+    Exact gs energy for TFIM in the thermodynamic limit.
+
+    For derivation see P. Pfeuty, The one- dimensional Ising model with
+    a transverse field, Annals of Physics 57, p. 79 (1970)
+
+    Ref: https://tenpy.readthedocs.io/en/latest/toycode_stubs/tfi_exact.html
+    """
+    # g = -g # Match the two conventions used
+    def e_k(k, lambda_):
+        return np.sqrt(1 + lambda_**2 - 2 * lambda_ * np.cos(k))
+    def Fermi(x, T):
+        return 1/(1+np.exp((x-np.pi)/T))
+
+    def f(k, lambda_, T):
+        ek = e_k(k, lambda_)
+        return ek * Fermi(ek, T)
+
+    # E0_exact = -g / (J  * 2 * np.pi) * quad(f, -np.pi, np.pi, args=(J / g, T))[0]
+    E0_exact = -2*J/(2*np.pi) * quad(f, 0, np.pi, args=(g/J, T))[0]
+
+    return E0_exact
+
+
 def exact_gs_energy(J, g):
     """
     Exact gs energy for TFIM in the thermodynamic limit.
@@ -85,31 +110,42 @@ def exact_gs_energy(J, g):
     def f(k, lambda_):
         return np.sqrt(1 + lambda_**2 + 2 * lambda_ * np.cos(k))
 
-    E0_exact = -g / (J * 2. * np.pi) * quad(f, -np.pi, np.pi, args=(J / g, ))[0]
+    E0_exact = -g / (J  * 2 * np.pi) * quad(f, -np.pi, np.pi, args=(J / g, ))[0]
 
     return E0_exact
 
-
 if __name__=="__main__":
-    J = -1
-    n = 16
-    g_range = np.linspace(0.1, 1.7, n)
-    Es = np.zeros(n)
-    for i, g in tqdm(enumerate(g_range), total=n):
-        E = exact_gs_energy(J, g)
-        Es[i] = np.real(E)
+    # # Ground state energy
+    # J = -1
+    # n = 16
+    # g_range = np.linspace(0.1, 1.7, n)
+    # Es = np.zeros(n)
+    # for i, g in tqdm(enumerate(g_range), total=n):
+    #     E = exact_gs_energy(J, g)
+    #     Es[i] = np.real(E)
 
-    #print('Saving exact gs energy...')
-    #data = np.zeros((2, n))
-    #data[0] = g_range
-    #data[1] = Es
-    #header = 'g, energies'
-    #np.savetxt('exact_gs_energy.csv', data, delimiter=',')
+    # plt.title('Ground state optimisation, exact')
+    # plt.plot(g_range, Es, label='VUMPS')
+    # plt.show()
 
-    #print('Loading exact gs_energy...')
-    #g_range, Es = np.loadtxt('exact_gs_energy.csv', delimiter=',')
+    # Thermal expectation values
 
+    J = 1
+    g = 0.5
+    N = 100
 
-    plt.title('Ground state optimisation, exact')
-    plt.plot(g_range, Es, label='VUMPS')
+    Ts = np.linspace(1e-5, 1, N)
+    ETherms = np.zeros(N)
+
+    for i, T in tqdm(enumerate(Ts), total=N):
+        ETherms[i] = exact_thermal_energy(J, g, T)
+
+    plt.title('Exact thermal expectations')
+    plt.plot(Ts, ETherms, '-')
+    plt.xlabel('T')
+    plt.ylabel('E Therm')
+    plt.xlim(0.0, 1.0)
+    plt.ylim(-1.1, -0.8)
     plt.show()
+
+
