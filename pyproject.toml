@@ -13,8 +13,8 @@ matplotlib = "^3.8.2"
 tqdm = "^4.66.1"
 ncon = "1.0"
 notebook = "^7.0.7"
-tenpy = "^0.1"
 cssselect = "^1.2.0"
+physics-tenpy = "^1.0.0"
 
 
 [build-system]
