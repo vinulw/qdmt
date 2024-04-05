@@ -72,7 +72,7 @@ def TransverseIsing(J, g, n):
     return h
 
 
-def exact_thermal_energy(J, g, T):
+def exact_thermal_energy_old(J, g, T):
     """
     Exact gs energy for TFIM in the thermodynamic limit.
 
@@ -89,10 +89,34 @@ def exact_thermal_energy(J, g, T):
 
     def f(k, lambda_, T):
         ek = e_k(k, lambda_)
-        return ek * Fermi(ek, T)
+        return ek * Fermi(2*J*ek, T)
 
     # E0_exact = -g / (J  * 2 * np.pi) * quad(f, -np.pi, np.pi, args=(J / g, T))[0]
     E0_exact = -2*J/(2*np.pi) * quad(f, 0, np.pi, args=(g/J, T))[0]
+
+    return E0_exact
+
+def exact_thermal_energy(J, g, T):
+    """
+    Exact gs energy for TFIM in the thermodynamic limit.
+
+    For derivation see P. Pfeuty, The one- dimensional Ising model with
+    a transverse field, Annals of Physics 57, p. 79 (1970)
+
+    Ref: https://tenpy.readthedocs.io/en/latest/toycode_stubs/tfi_exact.html
+    """
+    # g = -g # Match the two conventions used
+    def e_k(k, lambda_):
+        return np.sqrt(1 + lambda_**2 - 2 * lambda_ * np.cos(k))
+    def Fermi(x, T):
+        return 1/(1+np.exp(x/T))
+
+    def f(k, lambda_, T):
+        ek = e_k(k, lambda_)
+        return ek * (Fermi(2*J*ek, T) - 0.5)
+
+    # E0_exact = -g / (J  * 2 * np.pi) * quad(f, -np.pi, np.pi, args=(J / g, T))[0]
+    E0_exact = 2*J/np.pi * quad(f, 0, np.pi, args=(g/J, T))[0]
 
     return E0_exact
 
@@ -142,8 +166,8 @@ if __name__=="__main__":
 
     plt.title('Exact thermal expectations')
     plt.plot(Ts, ETherms, '-')
-    plt.xlabel('T')
-    plt.ylabel('E Therm')
+    plt.xlabel(r'$k_B T$')
+    plt.ylabel(r'$<H>_{\text{therm}}$')
     plt.xlim(0.0, 1.0)
     plt.ylim(-1.1, -0.8)
     plt.show()
