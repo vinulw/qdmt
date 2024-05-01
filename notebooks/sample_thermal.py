@@ -2,6 +2,7 @@ import numpy as np
 from scipy.stats import unitary_group
 from ncon import ncon
 from qdmt.hamiltonian import TransverseIsing
+from qdmt.hamiltonian import exact_thermal_energy
 from qdmt.uMPSHelpers import rightFixedPoint
 from tqdm import tqdm
 from datetime import datetime
@@ -15,8 +16,12 @@ import matplotlib.pyplot as plt
 X = np.array([[0, 1], [1, 0]], dtype=complex)
 Y = 1j*np.array([[0, -1], [1, 0]], dtype=complex)
 Z = np.array([[1, 0], [0, -1]], dtype=complex)
+I = eye(2, dtype=complex)
 
-S = {'I': eye(2, dtype=complex), 'X': X, 'Y': Y, 'Z': Z}
+norm = np.sqrt(2)
+
+S = {'I': I/norm, 'X': X/norm, 'Y': Y/norm, 'Z': Z/norm}
+
 
 def sampleUnitaryTensors(shape, N):
     '''
@@ -122,9 +127,9 @@ def generateHamiltonianPeriodic(J, g, n):
 
 if __name__=="__main__":
     # # Sampling states
-    shape = (4, 2, 4)
-    N = 10
-    As = sampleUnitaryTensors(shape, N)
+    # shape = (4, 2, 4)
+    # N = 10
+    # As = sampleUnitaryTensors(shape, N)
 
     # # Generating Hamiltonians
     # print('Generating TFIM Hamiltonian')
@@ -156,61 +161,67 @@ if __name__=="__main__":
     # test_rightFixedPointNormalised()
 
     # Calculating expectation values and save.
-    # save = True
-    # now = datetime.now().strftime('%d%m%y_%H%M%S')
+    save = False
+    now = datetime.now().strftime('%d%m%y_%H%M%S')
 
-    # J = 1.0
-    # g = 0.5
 
-    # shape = (4, 2, 4)
-    # N = 100000
-    # print('Collecting thermal distributions...')
-    # print('Sampling As...')
-    # As = sampleUnitaryTensors(shape, N)
+    prefix = None # 'data/020424_153954_' # 100 000 samples
+    prefix = 'data/010524_123814_'
+    if prefix is None:
+        J = 1.0
+        g = 0.5
 
-    # # print('Preparing H...')
-    # # H = TransverseIsing(J=J, g=g, n=2)
-    # H = generateHamiltonianPeriodic(J=J, g=g, n=2)
-    # print('Calculating expectations...')
-    # expHs = np.array([expectationLeftCanonical(A, H) for A in tqdm(As)])
+        shape = (4, 2, 4)
+        # N = 100000
+        N = 10000
+        print('Collecting thermal distributions...')
+        print('Sampling As...')
+        As = sampleUnitaryTensors(shape, N)
 
-    # if save:
-    #     savePath = f'data/{now}_As.npy'
-    #     print(f'Saving As as: {savePath}')
-    #     np.save(savePath, As)
-    #     savePath = f'data/{now}_expHs.npy'
-    #     print(f'Saving expHs as: {savePath}')
-    #     np.save(savePath, expHs)
+        # print('Preparing H...')
+        # H = TransverseIsing(J=J, g=g, n=2)
+        H = generateHamiltonianPeriodic(J=J, g=g, n=2)
+        print('Calculating expectations...')
+        expHs = np.array([expectationLeftCanonical(A, H) for A in tqdm(As)])
 
-    # breakpoint()
+        if save:
+            savePath = f'data/{now}_As.npy'
+            print(f'Saving As as: {savePath}')
+            np.save(savePath, As)
+            savePath = f'data/{now}_expHs.npy'
+            print(f'Saving expHs as: {savePath}')
+            np.save(savePath, expHs)
+    else:
+        print(f'Analysing data from run: {prefix}')
+        expHs = np.load(prefix + 'expHs.npy')
 
     # Analyse thermal expectation
-    prefix = 'data/020424_153954_' # 100 000 samples
-    print(f'Analysing data from run: {prefix}')
+    # expHs = expHs / 2 # Due to defintion of Pauli spin operators, change the Ham
+
     plt.rc('text', usetex=True)
     plt.rc('text.latex', preamble=r'\usepackage{physics}')
     plt.rcParams['font.size'] = 18
-    expHs = np.load(prefix + 'expHs.npy')
 
     Ns = [1000, 5000, 10000, 50000]
+    # Ns = [1000]
     repeats = 10
 
+    print('Sampling thermal dist...')
     for N in Ns:
         if len(expHs) < N:    # skip N if bigger than no samples
             continue
         nBetas = 50
         kTs = np.logspace(-3, 0, nBetas)
-        betas = 1/kTs
         expHTherm = np.zeros((nBetas, repeats), dtype=complex)
         for j in range(repeats):
             expHs_ = np.random.choice(expHs, size=N, replace=False)
 
             # Sampling thermal distributions
-            for i, beta in enumerate(betas):
-                expBHs = np.exp(-beta*expHs_)
+            for i, kT in enumerate(kTs):
+                expBHs = np.exp(-expHs_/kT)
                 expHTherm[i][j] = np.sum(np.dot(expBHs, expHs_)) / np.sum(expBHs)
 
-        expHTherm = expHTherm / 2
+        # expHTherm = expHTherm / 2
         means = np.mean(np.real(expHTherm), axis=1)
         stds = np.std(np.real(expHTherm), axis=1)
 
@@ -218,6 +229,21 @@ if __name__=="__main__":
         plt.errorbar(kTs, means, yerr=stds,
                       fmt='x-', label=f'N: {N}', capsize=3.0)
 
+    # Plot exact results
+    J = 1
+    g = 0.5
+    N = 100
+
+    Ts = np.linspace(1e-5, 10, N)
+    ETherms = np.zeros(N)
+
+    print('Calculating exact curve...')
+    for i, T in tqdm(enumerate(Ts), total=N):
+        ETherms[i] = exact_thermal_energy(J, g, T)
+
+    # plt.plot(Ts, ETherms, '-', label='exact')
+    rescaledTs = Ts / 10
+    plt.plot(rescaledTs, ETherms, '-', label='exact')
     plt.xlabel(r'$k_BT$')
     plt.ylabel(r'$\expval{H_{T}}$')
     plt.title(r'Estimating $\expval{H_T}(k_BT)$ using boosting. $N_{samp} = 10^5$')

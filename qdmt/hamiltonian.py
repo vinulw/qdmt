@@ -156,9 +156,9 @@ if __name__=="__main__":
 
     J = 1
     g = 0.5
-    N = 100
+    N = 1000
 
-    Ts = np.linspace(1e-5, 1, N)
+    Ts = np.linspace(1e-5, 100, N)
     ETherms = np.zeros(N)
 
     for i, T in tqdm(enumerate(Ts), total=N):
@@ -168,8 +168,8 @@ if __name__=="__main__":
     plt.plot(Ts, ETherms, '-')
     plt.xlabel(r'$k_B T$')
     plt.ylabel(r'$<H>_{\text{therm}}$')
-    plt.xlim(0.0, 1.0)
-    plt.ylim(-1.1, -0.8)
+    #plt.xlim(0.0, 1.0)
+    #plt.ylim(-1.1, -0.8)
     plt.show()
 
 
