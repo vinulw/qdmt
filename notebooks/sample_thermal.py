@@ -124,77 +124,7 @@ def generateHamiltonianPeriodic(J, g, n):
     h += -J * hzz - g*hxx
     return h
 
-
-if __name__=="__main__":
-    # # Sampling states
-    # shape = (4, 2, 4)
-    # N = 10
-    # As = sampleUnitaryTensors(shape, N)
-
-    # # Generating Hamiltonians
-    # print('Generating TFIM Hamiltonian')
-    # J = 1.0
-    # g = 0.2
-    # n = 2
-    # H = TransverseIsing(J, g, n)
-    # print(H.shape)
-
-    # # Verifying contraction for expectation value
-    # nSites = 3
-    # print(f'nSites: {nSites}')
-    # Acontr = [[i*4, i*4+2, (i+1)*4] for i in range(nSites)]
-    # ADagcontr = [[i*4+1, i*4+3, (i+1)*4+1] for i in range(nSites)]
-    # Acontr[0][0] = ADagcontr[0][0]
-
-    # Hcontr = [a[1] for a in Acontr] + [a[1] for a in ADagcontr]
-    # rContr = [Acontr[-1][-1], ADagcontr[-1][-1]]
-    # print(f'Acontr: {Acontr}')
-    # print(f'ADagcontr: {ADagcontr}')
-    # print(f'Hcontr: {Hcontr}')
-    # print(f'rContr: {rContr}')
-
-    # # Verifying right fixed point is normalised
-    # Rs = [rightFixedPointNormalised(A) for A in As]
-    # selfOverlaps = [ncon([r,], ((1, 1),)) for r in Rs]
-    # print(selfOverlaps)
-
-    # test_rightFixedPointNormalised()
-
-    # Calculating expectation values and save.
-    save = False
-    now = datetime.now().strftime('%d%m%y_%H%M%S')
-
-
-    prefix = None # 'data/020424_153954_' # 100 000 samples
-    prefix = 'data/010524_123814_'
-    if prefix is None:
-        J = 1.0
-        g = 0.5
-
-        shape = (4, 2, 4)
-        # N = 100000
-        N = 10000
-        print('Collecting thermal distributions...')
-        print('Sampling As...')
-        As = sampleUnitaryTensors(shape, N)
-
-        # print('Preparing H...')
-        # H = TransverseIsing(J=J, g=g, n=2)
-        H = generateHamiltonianPeriodic(J=J, g=g, n=2)
-        print('Calculating expectations...')
-        expHs = np.array([expectationLeftCanonical(A, H) for A in tqdm(As)])
-
-        if save:
-            savePath = f'data/{now}_As.npy'
-            print(f'Saving As as: {savePath}')
-            np.save(savePath, As)
-            savePath = f'data/{now}_expHs.npy'
-            print(f'Saving expHs as: {savePath}')
-            np.save(savePath, expHs)
-    else:
-        print(f'Analysing data from run: {prefix}')
-        expHs = np.load(prefix + 'expHs.npy')
-
+def plotKbtEnergy(expHs):
     # Analyse thermal expectation
     # expHs = expHs / 2 # Due to defintion of Pauli spin operators, change the Ham
 
@@ -249,3 +179,78 @@ if __name__=="__main__":
     plt.title(r'Estimating $\expval{H_T}(k_BT)$ using boosting. $N_{samp} = 10^5$')
     plt.legend()
     plt.show()
+
+def plotEnergyHist(expHs, dataFile=None):
+    from scipy.stats import norm
+
+    plt.rc('text', usetex=True)
+    plt.rc('text.latex', preamble=r'\usepackage{physics}')
+
+    plt.figure(figsize=(12, 8))
+    plt.rcParams['font.size'] = 16
+
+    expHs = np.real(expHs)
+
+    mu, std = norm.fit(expHs)
+    # print(mu, std)
+    # print(norm.ppf(0.99, mu, std))
+    # print(norm.ppf(0.01, mu, std))
+
+    n, bins, patches = plt.hist(expHs, bins=100, density=True)
+
+    normFit = norm.pdf(bins, mu, std)
+    plt.plot(bins, normFit, '--')
+    plt.title(r'Histogram of $\expval{{H}}$: Haar Random Unitaries, ${:.2E}$ samples'.format(len(expHs)))
+    plt.xlabel(r'$\expval{H}$')
+    plt.ylabel('Probability density')
+
+    plt.annotate(r'Fit: $\mathcal{{N}}(\mu = {0:.4f}, \sigma = {1:.4f})$'.format(mu, std),
+                 xy=(std*1.1, max(normFit)))
+
+    if dataFile is not None:
+        plt.annotate(f'Data File: {dataFile}', xy=(0.05, 0.025), xycoords='figure fraction')
+
+    plt.show()
+
+
+
+if __name__=="__main__":
+    save = True
+    now = datetime.now().strftime('%d%m%y_%H%M%S')
+
+
+    prefix = None # 'data/020424_153954_' # 100 000 samples
+    dataFile = None
+#     prefix = 'data/010524_123814_'
+    if prefix is None:
+        J = 1.0
+        g = 0.5
+        D = 8
+
+        shape = (D, 2, D)
+        N = int(10**5)
+        # N = 10000
+        print('Collecting thermal distributions...')
+        print('Sampling As...')
+        As = sampleUnitaryTensors(shape, N)
+
+        # print('Preparing H...')
+        # H = TransverseIsing(J=J, g=g, n=2)
+        H = generateHamiltonianPeriodic(J=J, g=g, n=2)
+        print('Calculating expectations...')
+        expHs = np.array([expectationLeftCanonical(A, H) for A in tqdm(As)])
+
+        if save:
+            savePath = f'data/{now}_As.npy'
+            print(f'Saving As as: {savePath}')
+            np.save(savePath, As)
+            dataFile = f'data/{now}_expHs.npy'
+            print(f'Saving expHs as: {dataFile}')
+            np.save(dataFile, expHs)
+    else:
+        print(f'Analysing data from run: {prefix}')
+        dataFile = prefix + 'expHs.npy'
+        expHs = np.load(dataFile)
+
+    plotEnergyHist(expHs, dataFile)
+
