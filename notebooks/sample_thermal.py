@@ -124,32 +124,43 @@ def generateHamiltonianPeriodic(J, g, n):
     h += -J * hzz - g*hxx
     return h
 
-def plotKbtEnergy(expHs):
+def calculateTempvsEDensity(expHs, N, betaLogRange=(-3, 0), nBetas=50, repeats=10):
+    kTs = np.logspace(betaLogRange[0], betaLogRange[1], nBetas)
+    expHTherm = np.zeros((nBetas, repeats), dtype=complex)
+    for j in range(repeats):
+        expHs_ = np.random.choice(expHs, size=N, replace=False)
+
+        # Sampling thermal distributions
+        for i, kT in enumerate(kTs):
+            expBHs = np.exp(-expHs_/kT)
+            expHTherm[i][j] = np.sum(np.dot(expBHs, expHs_)) / np.sum(expBHs)
+    return kTs, expHTherm
+
+def plotKbtEnergy(expHs=None, dataFile=None,
+                  Ns=None):
+
+    if dataFile is not None:
+        expHs = np.load(dataFile)
+
+    assert expHs is not None, 'Provide expH array or dataFile'
     # Analyse thermal expectation
     # expHs = expHs / 2 # Due to defintion of Pauli spin operators, change the Ham
 
     plt.rc('text', usetex=True)
     plt.rc('text.latex', preamble=r'\usepackage{physics}')
-    plt.rcParams['font.size'] = 18
+    plt.rcParams['font.size'] = 16
 
-    Ns = [1000, 5000, 10000, 50000]
+    plt.figure(figsize=(12, 8))
+
+    if Ns is None:
+        Ns = [1000, 5000, 10000, 50000]
     # Ns = [1000]
-    repeats = 10
 
     print('Sampling thermal dist...')
     for N in Ns:
-        if len(expHs) < N:    # skip N if bigger than no samples
+        if len(expHs) < N:
             continue
-        nBetas = 50
-        kTs = np.logspace(-3, 0, nBetas)
-        expHTherm = np.zeros((nBetas, repeats), dtype=complex)
-        for j in range(repeats):
-            expHs_ = np.random.choice(expHs, size=N, replace=False)
-
-            # Sampling thermal distributions
-            for i, kT in enumerate(kTs):
-                expBHs = np.exp(-expHs_/kT)
-                expHTherm[i][j] = np.sum(np.dot(expBHs, expHs_)) / np.sum(expBHs)
+        kTs, expHTherm = calculateTempvsEDensity(expHs, N)
 
         # expHTherm = expHTherm / 2
         means = np.mean(np.real(expHTherm), axis=1)
@@ -176,8 +187,10 @@ def plotKbtEnergy(expHs):
     plt.plot(rescaledTs, ETherms, '-', label='exact')
     plt.xlabel(r'$k_BT$')
     plt.ylabel(r'$\expval{H_{T}}$')
-    plt.title(r'Estimating $\expval{H_T}(k_BT)$ using boosting. $N_{samp} = 10^5$')
+    plt.title(r'Estimating $\expval{{H_T}}(k_BT)$ using boosting. $N_{{samp}} = {0:.2E}$'.format(len(expHs)))
     plt.legend()
+    if dataFile is not None:
+        plt.annotate(f'Data File: {dataFile}', xy=(0.05, 0.025), xycoords='figure fraction')
     plt.show()
 
 def plotEnergyHist(expHs, dataFile=None):
@@ -212,11 +225,65 @@ def plotEnergyHist(expHs, dataFile=None):
 
     plt.show()
 
+def thermalExpecationvsDs():
+    plt.rc('text', usetex=True)
+    lt.rc('text.latex', preamble=r'\usepackage{physics}')
+    plt.rcParams['font.size'] = 16
+
+    plt.figure(figsize=(12, 8))
+
+    Drange = [4, 6, 8]
+    dataFiles = [
+        'data/020424_152351_expHs.npy',
+        'data/070524_180309_expHs.npy',
+        'data/070524_182831_expHs.npy',
+    ]
+
+    N = 50000
+    for D, dataFile in zip(Drange, dataFiles):
+        expHs = np.load(dataFile)
+        kTs, expHTherm = calculateTempvsEDensity(expHs, N)
+
+        # expHTherm = expHTherm / 2
+        means = np.mean(np.real(expHTherm), axis=1)
+        stds = np.std(np.real(expHTherm), axis=1)
+
+        # print(f'Expectations real: ', np.allclose(np.imag(expHs), 0))
+        plt.errorbar(kTs, means, yerr=stds,
+                      fmt='x-', label=f'D: {D}', capsize=3.0)
+
+    J = 1
+    g = 0.5
+    NExact = 100
+
+    Ts = np.linspace(1e-5, 10, NExact)
+    ETherms = np.zeros(NExact)
+
+    print('Calculating exact curve...')
+    for i, T in tqdm(enumerate(Ts), total=NExact):
+        ETherms[i] = exact_thermal_energy(J, g, T)
+
+    # plt.plot(Ts, ETherms, '-', label='exact')
+    rescaledTs = Ts / 10
+    plt.plot(rescaledTs, ETherms, '-', label='exact')
+    plt.xlabel(r'$k_BT$')
+    plt.ylabel(r'$\expval{H_{T}}$')
+    plt.title(r'$\expval{{H_T}}(k_BT)$ for various $D$, $N = {0:.2E}$'.format(N))
+    plt.legend()
+    plt.show()
 
 
 if __name__=="__main__":
     save = True
     now = datetime.now().strftime('%d%m%y_%H%M%S')
+
+    # # Plotting results for single bond dimension
+    # dataFile = 'data/020424_152351_expHs.npy' # D = 4
+    # dataFile = 'data/070524_180309_expHs.npy' # D = 6
+    # dataFile = 'data/070524_182831_expHs.npy' # D = 8
+    # Ns = [1000, 10000, 50000]
+    # plotKbtEnergy(dataFile=dataFile, Ns=Ns)
+    # assert False
 
 
     prefix = None # 'data/020424_153954_' # 100 000 samples
