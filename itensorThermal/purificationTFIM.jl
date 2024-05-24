@@ -54,7 +54,7 @@ function main(; N=10, cutoff=1E-8, δτ=0.1, beta_max=2.0)
     terms += "Z", j, "Z", j+1
     terms += g, "X", j
   end
-  terms += g, "Sx", N
+  terms += g, "X", N
   H = MPO(terms, s)
   @printf("Created H...\n")
 
