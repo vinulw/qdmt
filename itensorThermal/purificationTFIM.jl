@@ -75,4 +75,4 @@ function main(; N=10, cutoff=1E-8, δτ=0.1, beta_max=2.0)
   return nothing
 end
 
-main(; beta_max=1.0)
+main(; beta_max=10.0)
