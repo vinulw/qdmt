@@ -137,7 +137,7 @@ def calculateTempvsEDensity(expHs, N, betaLogRange=(-3, 0), nBetas=50, repeats=1
     return kTs, expHTherm
 
 def plotKbtEnergy(expHs=None, dataFile=None,
-                  Ns=None):
+                  Ns=None, title=None):
 
     if dataFile is not None:
         expHs = np.load(dataFile)
@@ -187,10 +187,14 @@ def plotKbtEnergy(expHs=None, dataFile=None,
     plt.plot(rescaledTs, ETherms, '-', label='exact')
     plt.xlabel(r'$k_BT$')
     plt.ylabel(r'$\expval{H_{T}}$')
-    plt.title(r'Estimating $\expval{{H_T}}(k_BT)$ using boosting. $N_{{samp}} = {0:.2E}$'.format(len(expHs)))
+    if title is None:
+        plt.title(r'Estimating $\expval{{H_T}}(k_BT)$ using boosting. $N_{{samp}} = {0:.2E}$'.format(len(expHs)))
+    else:
+        plt.title(title)
     plt.legend()
     if dataFile is not None:
         plt.annotate(f'Data File: {dataFile}', xy=(0.05, 0.025), xycoords='figure fraction')
+
     plt.show()
 
 def plotEnergyHist(expHs, dataFile=None):
@@ -281,9 +285,11 @@ if __name__=="__main__":
     # dataFile = 'data/020424_152351_expHs.npy' # D = 4
     # dataFile = 'data/070524_180309_expHs.npy' # D = 6
     # dataFile = 'data/070524_182831_expHs.npy' # D = 8
-    # Ns = [1000, 10000, 50000]
-    # plotKbtEnergy(dataFile=dataFile, Ns=Ns)
-    # assert False
+
+    dataFile = 'data/290524_114704_expHs.npy' # Finite D = 4 L = 10
+    Ns = [500, 1000, 5000]
+    plotKbtEnergy(dataFile=dataFile, Ns=Ns)
+    assert False
 
 
     prefix = None # 'data/020424_153954_' # 100 000 samples
