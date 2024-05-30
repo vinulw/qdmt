@@ -71,6 +71,34 @@ def TransverseIsing(J, g, n):
 
     return h
 
+def TransverseLongitudinalIsing(J, gz, gx, n):
+    h = np.zeros((2**n, 2**n)) + 0j
+
+    for i in range(n-1):
+        pString = ['I'] * n
+        pString[i] = 'Z'
+        pString[i+1] = 'Z'
+        hzz = reduce(kron, [S[j] for j in pString])
+
+        pString = ['I'] * n
+        pString[i] = 'X'
+        hxx = reduce(kron, [S[j] for j in pString])
+        pString = ['I'] * n
+        pString[i+1] = 'X'
+        hxx += reduce(kron, [S[j] for j in pString])
+
+        pString = ['I'] * n
+        pString[i] = 'Z'
+        hzz = reduce(kron, [S[j] for j in pString])
+        pString = ['I'] * n
+        pString[i+1] = 'Z'
+        hzz += reduce(kron, [S[j] for j in pString])
+
+        h += -J * hzz - gx/2 * hxx - gz/2 * hzz
+
+    return h
+
+
 
 def exact_thermal_energy_old(J, g, T):
     """
