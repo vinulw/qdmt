@@ -17,6 +17,7 @@ cssselect = "^1.2.0"
 physics-tenpy = "^1.0.0"
 quimb = "^1.8.1"
 networkx = "^3.3"
+pandas = "^2.2.2"
 
 
 [build-system]

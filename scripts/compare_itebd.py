@@ -19,7 +19,7 @@ from analyse import exact_overlap
 ###############################################################################
 
 print('Loading data...')
-dmtDataDir = Path('./data/07122023-111352/')
+dmtDataDir = Path('./data/30052024-174627/')
 iTEBDdata = Path('./data/tenpy_timeev/05122023-175825-Ats.npy')
 
 saveFig = True
@@ -67,22 +67,22 @@ for A in AsDmt:
 # Compare the overlaps based on fidelity density.
 ###############################################################################
 
-# print('Comparing overlaps')
-# overlaps = []
-# for i in range(min((len(As2Dmt), len(As2Tenpy)))):
-#     print(f'Time Step: {tsDmt[i]}')
-#     overlaps.append(exact_overlap(As2Dmt[i], As2Tenpy[i]))
-#     print(f'\tOverlap: {overlaps[-1]}')
-#
-# plt.plot(tsDmt, overlaps, '.')
-# plt.xlabel('Time')
-# plt.ylabel('Fidelity Density with iTEBD')
-# figPath = dmtDataDir / 'compare_itebd.png'
-#
-# if saveFig:
-#     plt.savefig(figPath)
-#
-# plt.show()
+print('Comparing overlaps')
+overlaps = []
+for i in range(min((len(As2Dmt), len(As2Tenpy)))):
+    print(f'Time Step: {tsDmt[i]}')
+    overlaps.append(exact_overlap(As2Dmt[i], As2Tenpy[i]))
+    print(f'\tOverlap: {overlaps[-1]}')
+
+plt.plot(tsDmt, overlaps, '.')
+plt.xlabel('Time')
+plt.ylabel('Fidelity Density with iTEBD')
+figPath = dmtDataDir / 'compare_itebd.png'
+
+if saveFig:
+    plt.savefig(figPath)
+
+plt.show()
 
 
 ###############################################################################
