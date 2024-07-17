@@ -109,7 +109,7 @@ if __name__=="__main__":
     Dmax = int(1e4)
 
     dt = 0.1
-    maxTime = 5.0
+    maxTime = 10.0
     stepsPerDt = 10
     dtTEBD = dt / stepsPerDt
 
@@ -186,4 +186,4 @@ if __name__=="__main__":
     if savePath is not None:
         fname = str(savePath / f'{now}-Ats.npy')
         print(f'Saving as : {fname}')
-        np.save(fname, Ats)
+        np.save(fname, np.array(Ats, dtype=object), allow_pickle=True)
