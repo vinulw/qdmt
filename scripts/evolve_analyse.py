@@ -16,7 +16,7 @@ from loschmidt import loschmidt_paper
 # Load data for analysis
 ###############################################################################
 print('Loading files...')
-dataDir = Path('./data/21112023-144130/')
+dataDir = Path('./data/30052024-174627')
 dataFiles = os.listdir(dataDir)
 
 print(dataFiles)
