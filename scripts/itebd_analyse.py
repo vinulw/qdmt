@@ -56,6 +56,8 @@ if __name__ == "__main__":
     analyticsts = np.linspace(0, maxTime, 250)
     analyticLoschmidt = [np.real(loschmidt_paper(t, g1, g2)) for t in analyticsts]
 
+    np.save(saveDir / f'{prefix}-losch', [analyticsts, analyticLoschmidt])
+
     plt.plot(analyticsts, analyticLoschmidt, '--', label='analytic')
     plt.plot(ts, loschmidt, 'x', label='iTEBD')
     plt.legend()
