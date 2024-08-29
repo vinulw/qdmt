@@ -93,7 +93,7 @@ from optimise import uniformToRhoN, traceDistance
 from analyse import TrAB
 from uMPSHelpers import fixedPoints
 
-patchSizes = [2]
+patchSizes = [4]
 
 lenAs = min(len(As2Dmt), len(As2Tenpy))
 As2Dmt = As2Dmt[:lenAs]
@@ -123,7 +123,7 @@ plt.legend()
 figPath = dmtDataDir / 'compare_itebd_trace_patch.png'
 header = 't, ' + ', '.join([str(p) for p in patchSizes])
 data = np.array([tsDmt] + data).T
-dataPath = dmtDataDir / 'local_density_itebd_data.csv'
+dataPath = dmtDataDir / 'local_density_itebd_data_4.csv'
 np.savetxt(dataPath, data, delimiter=',', header=header)
 
 if saveFig:
