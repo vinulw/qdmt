@@ -112,35 +112,35 @@ lenAs = min(len(As2Dmt), len(As2Tenpy))
 As2Dmt = As2Dmt[:lenAs]
 As2Tenpy = As2Tenpy[:lenAs]
 
-data = []
-for N in tqdm(patchSizes, desc='N loop'):
-    tqdm.write(f'Analysing for N = {N}')
-    N2 = N // 2
-    patchData = []
-    for ADmt, ATenpy in tqdm(zip(As2Dmt, As2Tenpy), total=len(As2Dmt), leave=False):
-        rhoDmt = uniformToRhoN(ADmt, N2)
-        rhoTenpy = uniformToRhoN(ATenpy, N2)
-
-        patchData.append(traceDistance(rhoDmt, rhoTenpy))
-    data.append(patchData)
-
-plt.figure()
-for i, N in enumerate(patchSizes):
-    patchData = data[i]
-    plt.plot(tsDmt, patchData, '.', label=f'Patch Size: {N}')
-plt.title('Reduced density trace distance comparison')
-plt.xlabel('Time')
-plt.ylabel('Trace Dist')
-plt.legend()
-
-figPath = dmtDataDir / 'compare_itebd_trace_patch.png'
-header = 't, ' + ', '.join([str(p) for p in patchSizes])
-data = np.array([tsDmt] + data).T
-dataPath = dmtDataDir / 'local_density_itebd_data_4.csv'
-np.savetxt(dataPath, data, delimiter=',', header=header)
-
-if saveFig:
-    plt.savefig(figPath)
+# data = []
+# for N in tqdm(patchSizes, desc='N loop'):
+#     tqdm.write(f'Analysing for N = {N}')
+#     N2 = N // 2
+#     patchData = []
+#     for ADmt, ATenpy in tqdm(zip(As2Dmt, As2Tenpy), total=len(As2Dmt), leave=False):
+#         rhoDmt = uniformToRhoN(ADmt, N2)
+#         rhoTenpy = uniformToRhoN(ATenpy, N2)
+#
+#         patchData.append(traceDistance(rhoDmt, rhoTenpy))
+#     data.append(patchData)
+#
+# plt.figure()
+# for i, N in enumerate(patchSizes):
+#     patchData = data[i]
+#     plt.plot(tsDmt, patchData, '.', label=f'Patch Size: {N}')
+# plt.title('Reduced density trace distance comparison')
+# plt.xlabel('Time')
+# plt.ylabel('Trace Dist')
+# plt.legend()
+#
+# figPath = dmtDataDir / 'compare_itebd_trace_patch.png'
+# header = 't, ' + ', '.join([str(p) for p in patchSizes])
+# data = np.array([tsDmt] + data).T
+# dataPath = dmtDataDir / 'local_density_itebd_data_4.csv'
+# np.savetxt(dataPath, data, delimiter=',', header=header)
+#
+# if saveFig:
+#     plt.savefig(figPath)
 
 ###############################################################################
 # Trace distance Loschmidt plot
@@ -151,13 +151,14 @@ def traceDistanceN(A, B, N):
 
     return traceDistance(rhoA, rhoB)
 
-N2 = 2 # Note that this gets doubled for the final patch size
+
+N2 = 1  # Note that this gets doubled for the final patch size
 save = True
 
 method = 'traceDist' # Options are `traceAB` or `traceDist`
 
-dmtLoschPath = dmtDataDir / f'{dmtFname}-{method}LoschmidtDmt.npy'
-itebdLoschPath = dmtDataDir / f'{itebdFname}-{method}LoschmidtItebd.npy'
+dmtLoschPath = dmtDataDir / f'{dmtFname}-{method}-{N2*2}-LoschmidtDmt.npy'
+itebdLoschPath = dmtDataDir / f'{itebdFname}-{method}-{N2*2}-LoschmidtItebd.npy'
 
 if not dmtLoschPath.exists() and not itebdLoschPath.exists():
     print('Calculating Loschmidts...')
@@ -180,14 +181,22 @@ if not dmtLoschPath.exists() and not itebdLoschPath.exists():
     if save:
         np.save(dmtLoschPath, traceLoschmidtDmt)
         np.save(itebdLoschPath, traceLoschmidtTenpy)
+
+    traceLoschmidtDmt = np.array(traceLoschmidtDmt)
+    traceLoschmidtTenpy = np.array(traceLoschmidtTenpy)
 else:
     print('Loading Loschmidts...')
+    print(f'iTEBD Data: {itebdLoschPath}')
+    print(f'DMT Data: {dmtLoschPath}')
     traceLoschmidtDmt = np.load(dmtLoschPath)
     traceLoschmidtTenpy = np.load(itebdLoschPath)
 
 if method == 'traceDist':
     traceLoschmidtDmt_ = 1 - traceLoschmidtDmt
     traceLoschmidtTenpy_ = 1 - traceLoschmidtTenpy
+else:
+    traceLoschmidtDmt_ = traceLoschmidtDmt
+    traceLoschmidtTenpy_ = traceLoschmidtTenpy
 
 traceLoschmidtDmt_ = -1*np.log(np.abs(traceLoschmidtDmt_))
 traceLoschmidtTenpy_ = -1*np.log(np.abs(traceLoschmidtTenpy_))
@@ -213,28 +222,30 @@ plt.legend(fontsize=24)
 plt.grid()
 plt.tight_layout()
 
-savePath = dmtDataDir / f'{method}Losch.png'
+savePath = dmtDataDir / f'{method}_{N2*2}_Losch.png'
 plt.savefig(savePath)
 
-plt.figure(figsize=(12, 6))
-plt.plot(tsDmt, traceLoschmidtDmt, ls='--', marker='x', label='Local Cost', color=darkgreen)
-plt.plot(tsDmt, traceLoschmidtTenpy, ls='--', marker='o', fillstyle='none', label='iTEBD', color=darkblue)
+if method == 'traceDist':
+    plt.figure(figsize=(12, 6))
+    plt.plot(tsDmt, traceLoschmidtDmt, ls='--', marker='x', label='Local Cost', color=darkgreen)
+    plt.plot(tsDmt, traceLoschmidtTenpy, ls='--', marker='o', fillstyle='none', label='iTEBD', color=darkblue)
 
-plt.xlabel('Time')
-plt.ylabel(r'$Tr(\rho(t) - \rho(0))^2$')
-plt.legend(fontsize=24)
-plt.grid()
-plt.title('Trace distance with initial over evolution')
-plt.tight_layout()
+    plt.xlabel('Time')
+    plt.ylabel(r'$Tr(\rho(t) - \rho(0))^2$')
+    plt.legend(fontsize=24)
+    plt.grid()
+    plt.title('Trace distance with initial over evolution')
+    plt.tight_layout()
 
-plt.figure(figsize=(12, 6))
-diffTraceLoschmidt = np.abs(traceLoschmidtTenpy - traceLoschmidtDmt)
-plt.plot(tsDmt, diffTraceLoschmidt, ls='--', marker='x', color=darkred)
+    plt.figure(figsize=(12, 6))
+    diffTraceLoschmidt = np.abs(traceLoschmidtTenpy - traceLoschmidtDmt)
+    plt.plot(tsDmt, diffTraceLoschmidt, ls='--', marker='x', color=darkred)
 
-plt.xlabel('Time')
-plt.ylabel(r'$|D_{itebd} - D_{local}|$')
-plt.legend(fontsize=24)
-plt.grid()
-plt.title('Difference in trace dist with initial over evolution')
-plt.tight_layout()
+    plt.xlabel('Time')
+    plt.ylabel(r'$|D_{itebd} - D_{local}|$')
+    plt.legend(fontsize=24)
+    plt.grid()
+    plt.title('Difference in trace dist with initial over evolution')
+    plt.tight_layout()
+
 plt.show()
