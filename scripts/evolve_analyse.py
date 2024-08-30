@@ -82,7 +82,7 @@ analyticsTs = np.linspace(0, maxTime, 250)
 analyticLoschmidt = [np.real(loschmidt_paper(
                     t, config['g1'], config['g2'])) for t in analyticsTs]
 
-plt.figure(figsize=(12, 10))
+plt.figure(figsize=(12, 6))
 plt.plot(analyticsTs, analyticLoschmidt, '--', label='Analytic', color=darkred )
 itebdData = np.load('data/tenpy_timeev/17072024-151042-losch.npy')
 plt.plot(itebdData[0], itebdData[1], 'o', fillstyle='none', label='iTEBD', color=darkblue)
@@ -92,8 +92,9 @@ plt.xlabel('Time Step')
 plt.ylabel('Loschmidt Echo')
 # plt.plot(ts, densityLosch, label='Density Losch')
 
-plt.legend()
+plt.legend(fontsize=24)
 plt.grid()
+plt.tight_layout()
 
 if saveFig:
     figPath = dataDir / 'loschmidt.png'

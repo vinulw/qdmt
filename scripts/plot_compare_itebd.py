@@ -20,18 +20,21 @@ def plot_fidelity_density(dataPath):
     plt.xlabel('Time')
     plt.ylabel('Fidelity Density with iTEBD')
     plt.grid()
+    plt.tight_layout()
     figPath = dataPath / 'fidelity_itebd.png'
     plt.savefig(figPath)
     plt.show()
 
 def plot_trace_dist(dataPath):
-    dataFile = dataPath / "local_density_itebd_data.csv"
+    dataFile = dataPath / "local_density_itebd_data_4.csv"
     data = np.loadtxt(dataFile, delimiter=',').T
     plt.figure(figsize=(12, 12))
     plt.plot(data[0], data[1], '.', markersize=10, color=darkgreen)
     plt.xlabel('Time')
     plt.ylabel('Local Trace Distance with iTEBD')
+    # plt.ylabel(r'$Tr(\rho(t)_{itebd} - \rho(t)_{local})^2$')
     plt.grid()
+    plt.tight_layout()
     figPath = dataPath / 'trace_dist_itebd.png'
     plt.savefig(figPath)
     plt.show()
